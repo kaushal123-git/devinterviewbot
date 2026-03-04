@@ -23,54 +23,62 @@ import * as THREE from 'three';
 // ─── public data contract ─────────────────────────────────────────────────────
 export interface TrackingData {
   active: boolean;
+  facePoints: Array<{ x: number; y: number }>;
+  handPoints: Array<{ x: number; y: number }>;
 
   // ── Head pose (radians, VRM-normalized space) ────────────────────────────
   headPitch: number;   // nod   +forward / -backward
-  headYaw:   number;   // turn  +right   / -left   (mirrored for avatar)
-  headRoll:  number;   // tilt  +right   / -left
+  headYaw: number;   // turn  +right   / -left   (mirrored for avatar)
+  headRoll: number;   // tilt  +right   / -left
 
   // ── Blendshapes (0-1) ────────────────────────────────────────────────────
-  eyeBlinkLeft:  number;
+  eyeBlinkLeft: number;
   eyeBlinkRight: number;
-  mouthSmile:    number;   // avg mouthSmileLeft + mouthSmileRight
-  jawOpen:       number;
-  mouthFunnel:   number;   // drives "ou"
-  mouthPucker:   number;   // drives "oh"
-  browInnerUp:   number;   // drives "sad"
-  cheekPuff:     number;   // drives "happy" boost
+  mouthSmile: number;   // avg mouthSmileLeft + mouthSmileRight
+  jawOpen: number;
+  mouthFunnel: number;   // drives "ou"
+  mouthPucker: number;   // drives "oh"
+  browInnerUp: number;   // drives "sad"
+  cheekPuff: number;   // drives "happy" boost
 
   // ── Gesture / interaction ────────────────────────────────────────────────
-  handToMouth:  boolean;  // user's hand is near their own mouth
-  isGiggling:   boolean;  // handToMouth + happy expression simultaneously
+  handToMouth: boolean;  // user's hand is near their own mouth
+  isGiggling: boolean;  // handToMouth + happy expression simultaneously
+  gesture: string;   // categoryName from GestureRecognizer (e.g. 'Open_Palm')
+  handDetected: boolean;
+  handRaised: boolean;
 
   // ── Motion / idle detection ──────────────────────────────────────────────
   motionEnergy: number;   // rolling RMS of landmark delta (0 = perfectly still)
-  isBored:      boolean;  // true after BORED_DELAY_S of low motion
+  isBored: boolean;  // true after BORED_DELAY_S of low motion
 }
 
 export const DEFAULT_TRACKING: TrackingData = {
   active: false,
+  facePoints: [],
+  handPoints: [],
   headPitch: 0, headYaw: 0, headRoll: 0,
   eyeBlinkLeft: 0, eyeBlinkRight: 0,
   mouthSmile: 0, jawOpen: 0, mouthFunnel: 0, mouthPucker: 0,
   browInnerUp: 0, cheekPuff: 0,
-  handToMouth: false, isGiggling: false,
+  handToMouth: false, isGiggling: false, gesture: 'None',
+  handDetected: false, handRaised: false,
   motionEnergy: 0, isBored: false,
 };
 
 // ─── constants ────────────────────────────────────────────────────────────────
 // @mediapipe/tasks-vision WASM assets — served locally from public/mediapipe/wasm
 // (copied from node_modules at build time to avoid CDN MIME-type issues)
-const WASM_CDN   = '/mediapipe/wasm';
+const WASM_CDN = '/mediapipe/wasm';
 const FACE_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const GEST_MODEL = 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task';
 
 // Motion-energy threshold below which the user is "not moving"
 const BORED_THRESHOLD = 0.00025;
 // Seconds of stillness before "bored" state is entered
-const BORED_DELAY_S   = 5.0;
+const BORED_DELAY_S = 5.0;
 // Hand-to-mouth normalised-coord distance threshold
-const H2M_DIST        = 0.14;
+const H2M_DIST = 0.14;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function lp(a: number, b: number, t: number) { return a + (b - a) * t; }
@@ -87,20 +95,20 @@ function bsScore(result: FaceLandmarkerResult, name: string): number {
 export type TrackingStatus = 'idle' | 'loading' | 'ready' | 'active' | 'error';
 
 export function useMediaPipeTracking() {
-  const videoRef    = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const trackingRef = useRef<TrackingData>({ ...DEFAULT_TRACKING });
 
-  const [status,    setStatus]    = useState<TrackingStatus>('idle');
+  const [status, setStatus] = useState<TrackingStatus>('idle');
   const [statusMsg, setStatusMsg] = useState('');
 
   // ── internal refs ──────────────────────────────────────────────────────────
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
-  const gestureRecRef     = useRef<GestureRecognizer | null>(null);
-  const streamRef         = useRef<MediaStream | null>(null);
-  const rafRef            = useRef(0);
-  const prevLandmarks     = useRef<Array<{ x: number; y: number }> | null>(null);
-  const boredTimer        = useRef(0);
-  const lastFrameMs       = useRef(0);
+  const gestureRecRef = useRef<GestureRecognizer | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef(0);
+  const prevLandmarks = useRef<Array<{ x: number; y: number }> | null>(null);
+  const boredTimer = useRef(0);
+  const lastFrameMs = useRef(0);
 
   // ── load models (call once; idempotent) ───────────────────────────────────
   const loadModels = useCallback(async () => {
@@ -116,10 +124,10 @@ export function useMediaPipeTracking() {
             modelAssetPath: FACE_MODEL,
             delegate: 'GPU',
           },
-          outputFaceBlendshapes:              true,
+          outputFaceBlendshapes: true,
           outputFacialTransformationMatrixes: true,
           runningMode: 'VIDEO',
-          numFaces:    1,
+          numFaces: 1,
         }),
         GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
@@ -127,12 +135,12 @@ export function useMediaPipeTracking() {
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          numHands:    1,
+          numHands: 1,
         }),
       ]);
 
       faceLandmarkerRef.current = fl;
-      gestureRecRef.current     = gr;
+      gestureRecRef.current = gr;
       setStatus('ready');
       setStatusMsg('Models ready');
     } catch (e) {
@@ -156,7 +164,12 @@ export function useMediaPipeTracking() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr: any) {
+          if (playErr.name !== 'AbortError') throw playErr;
+          // In React Strict Mode, a double mount can abort the first play()
+        }
       }
       trackingRef.current.active = true;
       setStatus('active');
@@ -175,7 +188,7 @@ export function useMediaPipeTracking() {
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     prevLandmarks.current = null;
-    boredTimer.current    = 0;
+    boredTimer.current = 0;
     Object.assign(trackingRef.current, DEFAULT_TRACKING);
     setStatus(faceLandmarkerRef.current ? 'ready' : 'idle');
     setStatusMsg('Tracking stopped');
@@ -184,8 +197,8 @@ export function useMediaPipeTracking() {
   // ── rAF tick ───────────────────────────────────────────────────────────────
   // Runs in its own requestAnimationFrame, separate from Three.js render.
   useEffect(() => {
-    const fl    = faceLandmarkerRef.current;
-    const gr    = gestureRecRef.current;
+    const fl = faceLandmarkerRef.current;
+    const gr = gestureRecRef.current;
     const video = videoRef.current;
 
     if (status !== 'active' || !fl || !gr || !video) return;
@@ -207,48 +220,55 @@ export function useMediaPipeTracking() {
       if (faceResult?.faceLandmarks?.length) {
         const lms = faceResult.faceLandmarks[0];
 
+        // Keep a decimated set of face landmarks for lightweight preview overlay.
+        const points: Array<{ x: number; y: number }> = [];
+        for (let i = 0; i < lms.length; i += 3) {
+          points.push({ x: lms[i].x, y: lms[i].y });
+        }
+        T.facePoints = points;
+
         // ── Head pose from 4×4 facial transformation matrix ─────────────
         const mats = faceResult.facialTransformationMatrixes;
         if (mats?.length) {
           const m = mats[0].data;
           // Column-major Float32Array → THREE Matrix4 (row-major)
           const mat4 = new THREE.Matrix4().set(
-            m[0], m[4], m[8],  m[12],
-            m[1], m[5], m[9],  m[13],
+            m[0], m[4], m[8], m[12],
+            m[1], m[5], m[9], m[13],
             m[2], m[6], m[10], m[14],
             m[3], m[7], m[11], m[15],
           );
           const euler = new THREE.Euler().setFromRotationMatrix(mat4, 'YXZ');
-          // Mirror yaw so avatar mirrors the user's movement
-          T.headPitch = lp(T.headPitch, cl(euler.x,   -0.50,  0.50), 0.25);
-          T.headYaw   = lp(T.headYaw,   cl(-euler.y,  -0.60,  0.60), 0.25);
-          T.headRoll  = lp(T.headRoll,  cl(-euler.z,  -0.35,  0.35), 0.25);
+          // Track the user: invert angles so the avatar *looks at* the user's face instead of copying it
+          T.headPitch = lp(T.headPitch, cl(-euler.x, -0.50, 0.50), 0.25);
+          T.headYaw = lp(T.headYaw, cl(euler.y, -0.60, 0.60), 0.25);
+          T.headRoll = lp(T.headRoll, cl(euler.z, -0.35, 0.35), 0.25);
         }
 
         // ── Blendshapes ──────────────────────────────────────────────────
         if (faceResult.faceBlendshapes?.length) {
-          T.eyeBlinkLeft  = lp(T.eyeBlinkLeft,  bsScore(faceResult, 'eyeBlinkLeft'),  0.35);
+          T.eyeBlinkLeft = lp(T.eyeBlinkLeft, bsScore(faceResult, 'eyeBlinkLeft'), 0.35);
           T.eyeBlinkRight = lp(T.eyeBlinkRight, bsScore(faceResult, 'eyeBlinkRight'), 0.35);
-          T.jawOpen       = lp(T.jawOpen,       bsScore(faceResult, 'jawOpen'),        0.25);
-          T.mouthSmile    = lp(T.mouthSmile,
+          T.jawOpen = lp(T.jawOpen, bsScore(faceResult, 'jawOpen'), 0.25);
+          T.mouthSmile = lp(T.mouthSmile,
             (bsScore(faceResult, 'mouthSmileLeft') + bsScore(faceResult, 'mouthSmileRight')) * 0.5,
             0.20,
           );
-          T.mouthFunnel   = lp(T.mouthFunnel,  bsScore(faceResult, 'mouthFunnel'),   0.22);
-          T.mouthPucker   = lp(T.mouthPucker,  bsScore(faceResult, 'mouthPucker'),   0.22);
-          T.browInnerUp   = lp(T.browInnerUp,  bsScore(faceResult, 'browInnerUp'),   0.20);
-          T.cheekPuff     = lp(T.cheekPuff,    bsScore(faceResult, 'cheekPuff'),     0.18);
+          T.mouthFunnel = lp(T.mouthFunnel, bsScore(faceResult, 'mouthFunnel'), 0.22);
+          T.mouthPucker = lp(T.mouthPucker, bsScore(faceResult, 'mouthPucker'), 0.22);
+          T.browInnerUp = lp(T.browInnerUp, bsScore(faceResult, 'browInnerUp'), 0.20);
+          T.cheekPuff = lp(T.cheekPuff, bsScore(faceResult, 'cheekPuff'), 0.18);
         }
 
         // ── Motion energy → bored detection ──────────────────────────────
         let energy = 0;
         if (prevLandmarks.current) {
           const prev = prevLandmarks.current;
-          const n    = Math.min(lms.length, prev.length);
+          const n = Math.min(lms.length, prev.length);
           for (let i = 0; i < n; i++) {
             const dx = lms[i].x - prev[i].x;
             const dy = lms[i].y - prev[i].y;
-            energy  += dx * dx + dy * dy;
+            energy += dx * dx + dy * dy;
           }
           energy = Math.sqrt(energy / n);
         }
@@ -270,26 +290,63 @@ export function useMediaPipeTracking() {
         try { gestResult = gr.recognizeForVideo(video, nowMs); } catch { /* skip */ }
 
         let handToMouth = false;
+        let activeGesture = 'None';
+        let handDetected = false;
+        let handRaised = false;
+        const handPoints: Array<{ x: number; y: number }> = [];
         if (gestResult?.landmarks?.length) {
+          const hand = gestResult.landmarks[0];
+          handDetected = true;
+
+          // Keep hand landmarks for webcam overlay debugging.
+          for (let i = 0; i < hand.length; i++) {
+            handPoints.push({ x: hand[i].x, y: hand[i].y });
+          }
+
           // Use index fingertip (landmark 8) as the hand reference point
-          const tip  = gestResult.landmarks[0][8];
+          const tip = hand[8];
+          const wrist = hand[0];
+          const indexMcp = hand[5];
           const dist = Math.hypot(tip.x - mouthLm.x, tip.y - mouthLm.y);
           handToMouth = dist < H2M_DIST;
+
+          const noseY = lms[1]?.y ?? 0.45;
+          const foreheadY = lms[10]?.y ?? (noseY - 0.08);
+          handRaised =
+            wrist.y < (noseY + 0.12) ||
+            tip.y < (noseY + 0.10) ||
+            indexMcp.y < (foreheadY + 0.12);
+
+          if (gestResult.gestures?.length && gestResult.gestures[0]?.length > 0) {
+            activeGesture = gestResult.gestures[0][0].categoryName;
+            if (activeGesture === 'Open_Palm' || activeGesture === 'Victory' || activeGesture === 'Thumb_Up') {
+              handRaised = true;
+            }
+          }
         }
 
         T.handToMouth = handToMouth;
-        T.isGiggling  = handToMouth && T.mouthSmile > 0.45;
+        T.isGiggling = handToMouth && T.mouthSmile > 0.45;
+        T.gesture = activeGesture;
+        T.handDetected = handDetected;
+        T.handRaised = handRaised;
+        T.handPoints = handPoints;
 
       } else {
         // No face in frame — decay all values back toward resting
-        T.headPitch    = lp(T.headPitch,    0, 0.06);
-        T.headYaw      = lp(T.headYaw,      0, 0.06);
-        T.headRoll     = lp(T.headRoll,     0, 0.06);
+        T.headPitch = lp(T.headPitch, 0, 0.06);
+        T.headYaw = lp(T.headYaw, 0, 0.06);
+        T.headRoll = lp(T.headRoll, 0, 0.06);
         T.motionEnergy = lp(T.motionEnergy, 0, 0.06);
         boredTimer.current = Math.max(0, boredTimer.current - dt);
-        T.isBored      = boredTimer.current > BORED_DELAY_S;
-        T.handToMouth  = false;
-        T.isGiggling   = false;
+        T.isBored = boredTimer.current > BORED_DELAY_S;
+        T.handToMouth = false;
+        T.isGiggling = false;
+        T.gesture = 'None';
+        T.handDetected = false;
+        T.handRaised = false;
+        T.handPoints = [];
+        T.facePoints = [];
       }
     };
 
