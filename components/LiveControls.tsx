@@ -51,13 +51,14 @@ const LiveControls: React.FC<LiveControlsProps> = ({
       onClick={onConnect}
       disabled={isConnecting}
       className={`
-        group relative flex items-center gap-2.5 px-5 py-2 rounded-full 
+        group relative flex items-center gap-2 px-4 py-2 rounded-full 
         font-medium text-sm tracking-wide transition-all duration-300
         ${isConnecting 
             ? 'bg-panel border border-subtle text-secondary cursor-wait' 
             : 'bg-primary text-app hover:scale-105 shadow-lg shadow-primary/10'
         }
       `}
+      title="Connect AI Companion"
     >
       {isConnecting ? (
         <>
@@ -66,8 +67,8 @@ const LiveControls: React.FC<LiveControlsProps> = ({
         </>
       ) : (
         <>
-           <span>Start Interview</span>
-           <Mic className="w-3.5 h-3.5" />
+           <Mic className="w-4 h-4" />
+           <span>Connect Voice</span>
         </>
       )}
     </button>

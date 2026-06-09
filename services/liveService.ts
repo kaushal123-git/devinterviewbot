@@ -1,4 +1,4 @@
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, Type } from '@google/genai';
 import { base64ToBytes, decodeAudioData, float32To16BitPCM, bytesToBase64 } from '@/utils/audioUtils';
 import {
   SYSTEM_INSTRUCTION_INTERVIEWER,
@@ -20,6 +20,7 @@ export interface LiveConnectOptions {
   onStateChange?: (state: 'connecting' | 'connected' | 'closed' | 'error') => void;
   systemInstruction?: string;
   initialMessage?: string;
+  onToolCall?: (functionCall: any) => void;
 }
 
 /**
@@ -67,6 +68,8 @@ export class LiveService {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     this.inputStream = stream;
 
+    const instructionText = options?.systemInstruction || SYSTEM_INSTRUCTION_INTERVIEWER;
+
     this.session = await this.ai.live.connect({
       model: GEMINI_LIVE_MODEL,
       config: {
@@ -74,21 +77,56 @@ export class LiveService {
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: DEFAULT_VOICE_NAME } },
         },
-        systemInstruction: options?.systemInstruction || SYSTEM_INSTRUCTION_INTERVIEWER,
+        systemInstruction: {
+          parts: [{ text: instructionText }]
+        },
+        tools: [{
+          functionDeclarations: [
+            {
+              name: 'update_interview_context',
+              description: 'Changes the interview programming language and sets a new dynamically generated problem. Use this when the user asks to switch languages, or asks for a new interview question.',
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  language: {
+                    type: Type.STRING,
+                    description: 'The programming language (e.g. "python", "typescript", "javascript", "java", "cpp", "c")'
+                  },
+                  problemTitle: {
+                    type: Type.STRING,
+                    description: 'Title of the new coding problem'
+                  },
+                  problemDescription: {
+                    type: Type.STRING,
+                    description: 'Detailed markdown description of the new problem requirements and constraints'
+                  },
+                  starterCode: {
+                    type: Type.STRING,
+                    description: 'Initial starter code for the user to begin with in the specified language'
+                  }
+                },
+                required: ['language', 'problemTitle', 'problemDescription', 'starterCode']
+              }
+            }
+          ]
+        }],
       },
       callbacks: {
         onopen: async () => {
+          console.log('[LiveService] WebSocket connected successfully.');
           this.isConnected = true;
           options?.onStateChange?.('connected');
         },
         onmessage: async (msg: LiveServerMessage) => {
-          this.handleServerMessage(msg, options?.onMessage);
+          this.handleServerMessage(msg, options?.onMessage, options);
         },
-        onclose: () => {
+        onclose: (event: any) => {
+          console.warn('[LiveService] WebSocket closed:', event);
           this.isConnected = false;
           options?.onStateChange?.('closed');
         },
-        onerror: () => {
+        onerror: (err: any) => {
+          console.error('[LiveService] WebSocket error:', err);
           this.isConnected = false;
           options?.onStateChange?.('error');
         },
@@ -171,8 +209,7 @@ export class LiveService {
         this.outputMeterRafId = null;
         return;
       }
-
-      this.outputAnalyser.getFloatTimeDomainData(this.outputMeterData);
+      this.outputAnalyser.getFloatTimeDomainData(this.outputMeterData as Float32Array<ArrayBuffer>);
 
       let sum = 0;
       const len = this.outputMeterData.length;
@@ -216,7 +253,7 @@ export class LiveService {
     this.processor = this.inputAudioContext.createScriptProcessor(AUDIO_CHUNK_SIZE, 1, 1);
 
     this.processor.onaudioprocess = (e) => {
-      if (!this.session) return;
+      if (!this.session || !this.isConnected) return;
 
       // CRITICAL: While processing a text turn, do NOT send any audio data.
       // Even silence frames signal "user is speaking" and cancel the text turn.
@@ -239,7 +276,7 @@ export class LiveService {
 
       try {
         this.session.sendRealtimeInput({
-          media: { mimeType: `audio/pcm;rate=${INPUT_SAMPLE_RATE}`, data: base64 },
+          audio: { mimeType: `audio/pcm;rate=${INPUT_SAMPLE_RATE}`, data: base64 },
         });
       } catch {
         // Ignore transient WebSocket send errors
@@ -255,6 +292,7 @@ export class LiveService {
   private async handleServerMessage(
     message: LiveServerMessage,
     onTextMessage?: (message: { text: string; partial?: boolean }) => void,
+    options?: LiveConnectOptions,
   ) {
     const serverContent = message.serverContent;
     if (!serverContent) return;
@@ -280,11 +318,16 @@ export class LiveService {
     if (parts) {
       for (const part of parts) {
         if (part.text) textParts.push(part.text);
+        if (part.functionCall && options?.onToolCall) {
+          options.onToolCall(part.functionCall);
+        }
       }
     }
     if (textParts.length > 0 && onTextMessage) {
+      const fullText = textParts.join('\n');
+      console.log(`[LiveService] Received text part (${serverContent.turnComplete ? 'complete' : 'partial'}):`, fullText);
       onTextMessage({
-        text: textParts.join('\n'),
+        text: fullText,
         partial: !serverContent.turnComplete,
       });
     }
@@ -300,10 +343,25 @@ export class LiveService {
     if (!this.outputAudioContext || !this.outputMixGain) return;
 
     try {
-      const audioBuffer = await decodeAudioData(
-        base64ToBytes(base64Audio),
-        this.outputAudioContext,
-      );
+      const bytes = base64ToBytes(base64Audio);
+      let audioBuffer: AudioBuffer;
+
+      // Check if it's a WAV container (starts with RIFF and has WAVE at offset 8)
+      const isWav = bytes.length > 12 &&
+        bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && // 'RIFF'
+        bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45; // 'WAVE'
+
+      if (isWav) {
+        // Decode container format using native AudioContext.decodeAudioData
+        const arrayBufferCopy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        audioBuffer = await this.outputAudioContext.decodeAudioData(arrayBufferCopy as ArrayBuffer);
+      } else {
+        // Decode raw PCM using our helper
+        audioBuffer = await decodeAudioData(
+          bytes,
+          this.outputAudioContext,
+        );
+      }
 
       this.nextStartTime = Math.max(this.outputAudioContext.currentTime, this.nextStartTime);
 
@@ -317,8 +375,8 @@ export class LiveService {
       source.onended = () => {
         this.activeSources.delete(source);
       };
-    } catch {
-      // Decoding failure — skip this chunk silently
+    } catch (error) {
+      console.error('[LiveService] playAudioChunk error decoding audio:', error);
     }
   }
 
@@ -338,14 +396,15 @@ export class LiveService {
 
   /** Sends a JPEG frame of the code editor for the model's vision input. */
   public async sendVideoFrame(base64Image: string) {
-    if (!this.session) return;
+    if (!this.session || !this.isConnected) return;
 
     try {
       await this.session.sendRealtimeInput({
-        media: { mimeType: 'image/jpeg', data: base64Image },
+        video: { mimeType: 'image/jpeg', data: base64Image },
       });
-    } catch {
-      // Transient send error — skip frame
+      console.log('[LiveService] Sent video frame.');
+    } catch (err) {
+      console.error('[LiveService] Error sending video frame:', err);
     }
   }
 
@@ -360,6 +419,7 @@ export class LiveService {
         : code;
 
     const prompt = `[SYSTEM UPDATE] The user has updated their code:\n\`\`\`${safeCode}\`\`\`\nReview the code silently. Only speak if you see a critical error or if you were waiting for this code to answer a question.`;
+    console.log('[LiveService] Sending code context update.');
     await this.sendText(prompt);
   }
 
@@ -369,19 +429,19 @@ export class LiveService {
    * as a clean text-only turn rather than an audio interruption.
    */
   public async sendText(text: string) {
-    if (!this.session) return;
+    if (!this.session || !this.isConnected) return;
 
     // Mute mic so audio frames don't conflict with the text turn
     this.isMicrophoneMuted = true;
 
     try {
-      await (this.session as any).send({
-        clientContent: {
-          turns: [{ role: 'user', parts: [{ text }] }],
-          turnComplete: true,
-        },
+      await this.session.sendClientContent({
+        turns: [{ role: 'user', parts: [{ text }] }],
+        turnComplete: true,
       });
-    } catch {
+      console.log('[LiveService] Sent client text content:', text);
+    } catch (err) {
+      console.error('[LiveService] Error sending client text:', err);
       this.isMicrophoneMuted = false;
       return;
     }
@@ -393,6 +453,17 @@ export class LiveService {
         this.isMicrophoneMuted = false;
       }
     }, MIC_UNMUTE_TIMEOUT_MS);
+  }
+
+  /** Sends a response back to the server after a tool call completes */
+  public sendToolResponse(functionResponses: any[]) {
+    if (!this.session || !this.isConnected) return;
+    try {
+      this.session.sendToolResponse({ functionResponses });
+      console.log('[LiveService] Sent tool response successfully.');
+    } catch (e) {
+      console.error('[LiveService] Error sending tool response:', e);
+    }
   }
 
   /** Generates speech from text using the Gemini TTS model and plays it. */
@@ -414,9 +485,11 @@ export class LiveService {
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         await this.playAudioChunk(base64Audio);
+      } else {
+        console.warn('[LiveService] speak response did not contain base64 audio data. Response candidates:', response.candidates);
       }
-    } catch {
-      // TTS generation failed — fail silently
+    } catch (error) {
+      console.error('[LiveService] speak error generating content:', error);
     }
   }
 

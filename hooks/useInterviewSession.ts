@@ -74,9 +74,33 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
     (lang: InterviewLanguage) => {
       if (lang === languageRef.current) return;
       setLanguage(lang);
-      setCode(currentProblemRef.current.starters[lang]);
+      // Only reset the code if the current problem has a starter for this language
+      const starter = currentProblemRef.current.starters[lang];
+      if (starter) {
+        setCode(starter);
+      }
     },
     [],
+  );
+
+  const setDynamicProblem = useCallback(
+    (lang: string, title: string, description: string, starterCode: string) => {
+      // Create a dynamic problem object
+      const dynamicProblem: InterviewProblem = {
+        id: `dynamic-${Date.now()}`,
+        title,
+        description,
+        difficulty: 'Medium',
+        starters: {
+          [lang as InterviewLanguage]: starterCode
+        } as Record<InterviewLanguage, string>
+      };
+      
+      setCurrentProblem(dynamicProblem);
+      setLanguage(lang as InterviewLanguage);
+      setCode(starterCode);
+    },
+    []
   );
 
   const handleSendMessage = useCallback(
@@ -158,7 +182,10 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
 
   return {
     currentProblem,
+    setCurrentProblem,
     language,
+    setLanguage,
+    setDynamicProblem,
     code,
     setCode,
     messages,

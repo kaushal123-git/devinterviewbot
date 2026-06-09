@@ -25,6 +25,7 @@ import { useMediaPipeTracking, type TrackingData } from '../hooks/useMediaPipeTr
 interface AvatarInterviewerProps {
   speechLevel: number;
   isLiveConnected: boolean;
+  subtitles?: string;
 }
 
 export interface AvatarInterviewerHandle {
@@ -113,7 +114,8 @@ function VRMHead({ speechLevel, trackingRef }: { speechLevel: number; trackingRe
   return <group ref={rootRef} position={[0, -1.56, 0]} />;
 }
 
-const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInterviewerProps>(({ speechLevel, isLiveConnected }, ref) => {
+export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInterviewerProps>(
+  ({ speechLevel, isLiveConnected, subtitles }, ref) => {
   // Start the tracking pipeline immediately when this component mounts.
   const tracking = useMediaPipeTracking();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -213,6 +215,9 @@ const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInterviewerP
           className="absolute inset-0 w-full h-full pointer-events-none"
           style={{ transform: 'scaleX(-1)' }}
         />
+        {!isLiveConnected && (
+          <p className="text-xs text-white/50 animate-pulse mt-1">Connecting to Live AI...</p>
+        )}
       </div>
 
       <Canvas camera={{ position: [0, 0.02, 1.02], fov: 27 }} style={{ background: 'transparent' }}>
@@ -228,6 +233,16 @@ const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInterviewerP
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] uppercase text-secondary/80">
         {isLiveConnected ? 'Listening' : 'Interviewer'}
       </div>
+
+      {subtitles && (
+        <div className="absolute bottom-6 left-0 right-0 px-4 flex justify-center pointer-events-none">
+          <div className="bg-black/70 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 shadow-xl max-w-full">
+            <p className="text-white text-[11px] font-medium text-center leading-snug drop-shadow-md">
+              {subtitles}
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 });

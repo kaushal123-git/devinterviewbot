@@ -17,6 +17,7 @@ interface UseLiveInterviewParams {
   editorRef: React.RefObject<CodeEditorHandle | null>;
   avatarRef: React.RefObject<AvatarInterviewerHandle | null>;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  onUpdateContext?: (language: string, title: string, description: string, starterCode: string) => void;
 }
 
 /**
@@ -36,11 +37,13 @@ export function useLiveInterview({
   editorRef,
   avatarRef,
   setMessages,
+  onUpdateContext,
 }: UseLiveInterviewParams) {
   const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [isConnectingLive, setIsConnectingLive] = useState(false);
   const [volume, setVolume] = useState(0);
   const [speechLevel, setSpeechLevel] = useState(0);
+  const [subtitles, setSubtitles] = useState('');
 
   const liveServiceRef = useRef<LiveService | null>(null);
   const videoIntervalRef = useRef<number | null>(null);
@@ -93,14 +96,30 @@ export function useLiveInterview({
 
       const sessionInstruction = `
         ${SYSTEM_INSTRUCTION_INTERVIEWER}
-        CONTEXT: Problem: ${problem.title}, Difficulty: ${problem.difficulty}, Lang: ${lang}
+        CONTEXT: We are currently looking at problem: ${problem.title} (Difficulty: ${problem.difficulty}, Lang: ${lang})
         Description: ${problem.description}
-        IMPORTANT: Start the interview IMMEDIATELY. Speak first. Introduce yourself and the problem.
+        NOTE: Operate as an open voice companion. Wait for the user to speak first, or greet them casually.
       `;
 
       await liveServiceRef.current.connect({
         systemInstruction: sessionInstruction,
-        initialMessage: 'Hello, I am ready to start the interview.',
+        onMessage: (msg) => {
+          setSubtitles(msg.text);
+        },
+        onToolCall: (functionCall) => {
+          console.log('[Live] Tool call received:', functionCall);
+          if (functionCall.name === 'update_interview_context') {
+            const args = functionCall.args as any;
+            if (args.language && args.problemTitle && args.problemDescription && args.starterCode && onUpdateContext) {
+              onUpdateContext(args.language, args.problemTitle, args.problemDescription, args.starterCode);
+            }
+            liveServiceRef.current?.sendToolResponse([{
+              id: functionCall.id,
+              name: functionCall.name,
+              response: { result: `Context successfully updated to ${args.problemTitle} in ${args.language}` }
+            }]);
+          }
+        }
       });
 
       setIsLiveConnected(true);
@@ -112,26 +131,19 @@ export function useLiveInterview({
           {
             id: Date.now().toString(),
             role: 'user' as const,
-            text: 'Start Interview',
+            text: 'Voice Session Connected',
             timestamp: Date.now(),
           },
         ]);
       }, 1000);
 
-      // Begin periodic video frame capture alternating between Code Editor and WebCam
+      // Begin periodic video frame capture of the WebCam
       videoIntervalRef.current = window.setInterval(async () => {
-        if (liveServiceRef.current) {
-          let base64Frame: string | null = null;
-          frameAlternatorRef.current = !frameAlternatorRef.current;
-
-          if (frameAlternatorRef.current && avatarRef.current) {
-            base64Frame = avatarRef.current.captureWebcamFrame();
+        if (liveServiceRef.current && avatarRef.current) {
+          const base64Frame = avatarRef.current.captureWebcamFrame();
+          if (base64Frame) {
+            await liveServiceRef.current.sendVideoFrame(base64Frame);
           }
-          if (!base64Frame && editorRef.current) {
-            base64Frame = await editorRef.current.captureFrame();
-          }
-
-          if (base64Frame) await liveServiceRef.current.sendVideoFrame(base64Frame);
         }
       }, VIDEO_FRAME_INTERVAL_MS);
     } catch {
@@ -157,6 +169,7 @@ export function useLiveInterview({
     isConnectingLive,
     volume,
     speechLevel,
+    subtitles,
     liveServiceRef,
     handleConnectLive,
     handleDisconnectLive,

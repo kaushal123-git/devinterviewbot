@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useLiveInterview } from '@/hooks/useLiveInterview';
 import { useInterviewSession } from '@/hooks/useInterviewSession';
 import { RefreshCw, Terminal } from 'lucide-react';
+import { PROBLEMS } from '@/constants';
 
 const API_KEY = (import.meta as any).env.VITE_API_KEY || '';
 
@@ -30,6 +31,9 @@ const App: React.FC = () => {
     editorRef,
     avatarRef,
     setMessages: session.setMessages,
+    onUpdateContext: (lang, title, desc, code) => {
+      session.setDynamicProblem(lang, title, desc, code);
+    }
   });
 
   // Wire live refs into session for message routing (effect, not render-phase)
@@ -51,6 +55,7 @@ const App: React.FC = () => {
             ref={avatarRef}
             speechLevel={live.speechLevel}
             isLiveConnected={live.isLiveConnected}
+            subtitles={live.subtitles}
           />
           <DescriptionBanner description={session.currentProblem.description} />
           <div className="flex-1 relative">

@@ -138,11 +138,11 @@ export function useVRMFace({
       }
     } else if (speechLevel !== undefined) {
       // Fallback to speechLevel provided by props
-      isSpeaking = speechLevel > 0.05;
+      isSpeaking = speechLevel > 0.01;
       headReact = speechLevel > profile.headReactThreshold;
 
       if (isSpeaking) {
-        const vol = cl(speechLevel * 2.35, 0, 1);
+        const vol = cl(speechLevel * 3.5, 0, 1);
         const pv = profile.viseme;
         const lm = profile.lipMult;
 

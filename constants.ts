@@ -1,9 +1,9 @@
 import { InterviewProblem } from '@/types';
 
 // --- Model Configuration ---
-export const GEMINI_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
-export const GEMINI_CHAT_MODEL = 'gemini-2.5-flash';
-export const GEMINI_THINKING_MODEL = 'gemini-3-pro-preview';
+export const GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+export const GEMINI_CHAT_MODEL = 'gemini-3.5-flash';
+export const GEMINI_THINKING_MODEL = 'gemini-3.1-pro-preview';
 export const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 
 // --- Audio Configuration ---
