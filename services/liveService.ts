@@ -21,6 +21,7 @@ export interface LiveConnectOptions {
   systemInstruction?: string;
   initialMessage?: string;
   onToolCall?: (functionCall: any) => void;
+  onUsageUpdate?: (usage: any) => void;
 }
 
 /**
@@ -106,6 +107,20 @@ export class LiveService {
                   }
                 },
                 required: ['language', 'problemTitle', 'problemDescription', 'starterCode']
+              }
+            },
+            {
+              name: 'type_code',
+              description: 'Types or replaces code directly in the code editor. Use this tool when the user asks you to write code, provide an example, fix a bug, or type something out.',
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  code: {
+                    type: Type.STRING,
+                    description: 'The exact code to write into the code editor. This will completely replace the current contents of the editor.'
+                  }
+                },
+                required: ['code']
               }
             }
           ]
@@ -295,6 +310,21 @@ export class LiveService {
     options?: LiveConnectOptions,
   ) {
     const serverContent = message.serverContent;
+    
+    // Process usage metadata
+    if (message.usageMetadata && options?.onUsageUpdate) {
+      options.onUsageUpdate(message.usageMetadata);
+    }
+
+    // Process tool calls (these arrive outside of serverContent in the new SDK)
+    if (message.toolCall?.functionCalls && options?.onToolCall) {
+      console.log('[LiveService] Received toolCall from server:', message.toolCall.functionCalls);
+      for (const funcCall of message.toolCall.functionCalls) {
+        options.onToolCall(funcCall);
+      }
+    }
+
+    // Process server content (audio, text)
     if (!serverContent) return;
 
     if (serverContent.interrupted) {
@@ -318,6 +348,7 @@ export class LiveService {
     if (parts) {
       for (const part of parts) {
         if (part.text) textParts.push(part.text);
+        // Fallback for older SDKs where functionCall was inside parts
         if (part.functionCall && options?.onToolCall) {
           options.onToolCall(part.functionCall);
         }
@@ -418,21 +449,16 @@ export class LiveService {
         ? code.substring(0, CODE_TRUNCATE_LIMIT) + '\n...[truncated]'
         : code;
 
-    const prompt = `[SYSTEM UPDATE] The user has updated their code:\n\`\`\`${safeCode}\`\`\`\nReview the code silently. Only speak if you see a critical error or if you were waiting for this code to answer a question.`;
+    const prompt = `[SYSTEM UPDATE] The user has updated their code:\n\`\`\`${safeCode}\`\`\`\nReview the code silently in the background. Do NOT speak to acknowledge this update unless the user explicitly asked you a question about it.`;
     console.log('[LiveService] Sending code context update.');
     await this.sendText(prompt);
   }
 
   /**
    * Sends a text turn to the live session.
-   * Mutes the microphone during transmission so the backend treats this
-   * as a clean text-only turn rather than an audio interruption.
    */
   public async sendText(text: string) {
     if (!this.session || !this.isConnected) return;
-
-    // Mute mic so audio frames don't conflict with the text turn
-    this.isMicrophoneMuted = true;
 
     try {
       await this.session.sendClientContent({
@@ -442,17 +468,18 @@ export class LiveService {
       console.log('[LiveService] Sent client text content:', text);
     } catch (err) {
       console.error('[LiveService] Error sending client text:', err);
-      this.isMicrophoneMuted = false;
-      return;
     }
+  }
 
-    // Safety: unmute after timeout if model doesn't respond with audio
-    // (handleServerMessage usually unmutes earlier when audio arrives)
-    setTimeout(() => {
-      if (this.isMicrophoneMuted) {
-        this.isMicrophoneMuted = false;
-      }
-    }, MIC_UNMUTE_TIMEOUT_MS);
+  // --- Microphone Controls ---
+
+  public get isMicMuted() {
+    return this.isMicrophoneMuted;
+  }
+
+  public setMicMuted(muted: boolean) {
+    this.isMicrophoneMuted = muted;
+    console.log(`[LiveService] Microphone is now ${muted ? 'MUTED' : 'UNMUTED'}.`);
   }
 
   /** Sends a response back to the server after a tool call completes */

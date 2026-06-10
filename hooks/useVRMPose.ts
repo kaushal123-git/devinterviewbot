@@ -53,6 +53,7 @@ export function useVRMPose({
   const knockTimer = useRef(0);
   const knockCount = useRef(0);
   const waveAnimPhase = useRef(0);
+  const wagAnimPhase = useRef(0);
   const randomLookTimer = useRef(0);
   const randomLookTarget = useRef(new THREE.Vector2(0, 0));
 
@@ -239,24 +240,44 @@ export function useVRMPose({
     if (yawnTimer.current > 0) yawnTimer.current -= delta;
     if (knockTimer.current > 0) knockTimer.current -= delta;
 
-    if (waveTimer.current > 0) {
+    const isMiddleFinger = T?.isMiddleFinger || false;
+
+    if (isMiddleFinger) {
+      wagAnimPhase.current += delta;
+      
+      // Fast head shake
+      if (head) { head.rotation.y = Math.sin(now * Math.PI * 5) * 0.25; head.rotation.x = lp(head.rotation.x, 0.1, 0.1); }
+      if (neck) { neck.rotation.y = Math.sin(now * Math.PI * 5) * 0.1; }
+      
+      if (rSh) { rSh.rotation.z = lp(rSh.rotation.z, 0.1, 0.15); rSh.rotation.x = lp(rSh.rotation.x, -0.1, 0.15); }
+      if (lSh) { lSh.rotation.z = lp(lSh.rotation.z, -0.1, 0.15); lSh.rotation.x = lp(lSh.rotation.x, -0.1, 0.15); }
+
+      // Fold arms defensively
+      if (rUA) { rUA.rotation.x = lp(rUA.rotation.x, -0.2, 0.2); rUA.rotation.y = lp(rUA.rotation.y, 0.4, 0.2); rUA.rotation.z = lp(rUA.rotation.z, R_DOWN + 0.2, 0.2); }
+      if (lUA) { lUA.rotation.x = lp(lUA.rotation.x, -0.2, 0.2); lUA.rotation.y = lp(lUA.rotation.y, -0.4, 0.2); lUA.rotation.z = lp(lUA.rotation.z, L_DOWN - 0.2, 0.2); }
+      if (rLA) { rLA.rotation.x = lp(rLA.rotation.x, -1.4, 0.2); rLA.rotation.z = lp(rLA.rotation.z, 0.5, 0.2); }
+      if (lLA) { lLA.rotation.x = lp(lLA.rotation.x, -1.4, 0.2); lLA.rotation.z = lp(lLA.rotation.z, -0.5, 0.2); }
+      if (rHd) { rHd.rotation.x = lp(rHd.rotation.x, -0.2, 0.2); rHd.rotation.z = lp(rHd.rotation.z, 0, 0.2); }
+      if (lHd) { lHd.rotation.x = lp(lHd.rotation.x, -0.2, 0.2); lHd.rotation.z = lp(lHd.rotation.z, 0, 0.2); }
+
+    } else if (waveTimer.current > 0) {
       waveAnimPhase.current += delta;
       if (head) { head.rotation.z = lp(head.rotation.z, 0.14, 0.12); } // stronger right tilt
       const wPhase = waveAnimPhase.current * Math.PI * 5; // smooth incrementing wave phase
 
-      // Keep waving arm beside face and biased to avatar's right side.
-      if (rSh) { rSh.rotation.z = lp(rSh.rotation.z, 0.03, 0.15); rSh.rotation.x = lp(rSh.rotation.x, -0.10, 0.15); }
+      // Keep waving arm tucked in front of chest so it doesn't get clipped by the narrow bounding box
+      if (rSh) { rSh.rotation.z = lp(rSh.rotation.z, -0.1, 0.15); rSh.rotation.x = lp(rSh.rotation.x, -0.1, 0.15); }
       if (lSh) { lSh.rotation.z = lp(lSh.rotation.z, 0, 0.1); lSh.rotation.x = lp(lSh.rotation.x, 0, 0.1); }
 
-      // Upper arm lifted near cheek level using normalized down constants.
-      if (rUA) { rUA.rotation.x = lp(rUA.rotation.x, -0.55, 0.26); rUA.rotation.y = lp(rUA.rotation.y, 0.34, 0.22); rUA.rotation.z = lp(rUA.rotation.z, R_DOWN + 0.26, 0.2); }
+      // Upper arm pointed forward/up and tucked deeply near body center
+      if (rUA) { rUA.rotation.x = lp(rUA.rotation.x, -1.2, 0.26); rUA.rotation.y = lp(rUA.rotation.y, -0.8, 0.22); rUA.rotation.z = lp(rUA.rotation.z, -0.4, 0.2); }
       if (lUA) { lUA.rotation.x = lp(lUA.rotation.x, 0, 0.1); lUA.rotation.y = lp(lUA.rotation.y, 0, 0.1); lUA.rotation.z = lp(lUA.rotation.z, L_DOWN, 0.1); }
 
-      // Forearm/hand do the actual waving with a tighter arc so they stay in-frame.
+      // Forearm bent upward so hand waves near face
       if (rLA) {
-        rLA.rotation.x = lp(rLA.rotation.x, -1.05, 0.22);
-        rLA.rotation.y = lp(rLA.rotation.y, 0.22, 0.24);
-        rLA.rotation.z = lp(rLA.rotation.z, Math.sin(wPhase) * 0.08 + 0.01, 0.25);
+        rLA.rotation.x = lp(rLA.rotation.x, -1.8, 0.22);
+        rLA.rotation.y = lp(rLA.rotation.y, 0.0, 0.24);
+        rLA.rotation.z = lp(rLA.rotation.z, Math.sin(wPhase) * 0.25, 0.25);
       }
       if (lLA) { lLA.rotation.x = lp(lLA.rotation.x, 0, 0.1); lLA.rotation.y = lp(lLA.rotation.y, 0, 0.1); lLA.rotation.z = lp(lLA.rotation.z, 0, 0.1); }
 

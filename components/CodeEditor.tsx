@@ -157,6 +157,13 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
                 >
                     TypeScript
                 </button>
+                {language !== 'python' && language !== 'typescript' && (
+                  <button 
+                      className={`px-2 py-0.5 rounded-sm transition-all bg-panel text-primary shadow-sm capitalize`}
+                  >
+                      {language}
+                  </button>
+                )}
             </div>
         </div>
       </div>

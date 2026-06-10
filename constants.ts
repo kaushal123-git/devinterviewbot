@@ -15,8 +15,8 @@ export const AUDIO_CHUNK_SIZE = 4096;
 export const DEFAULT_VOICE_NAME = 'Puck'; // Energetic, young boyish voice
 
 // --- Timing Configuration ---
-export const CODE_DEBOUNCE_MS = 3000;
-export const VIDEO_FRAME_INTERVAL_MS = 1000;
+export const CODE_DEBOUNCE_MS = 10000; // Increased from 3s to 10s to save context tokens
+export const VIDEO_FRAME_INTERVAL_MS = 5000; // Increased from 1s to 5s to save image tokens
 export const MIC_UNMUTE_TIMEOUT_MS = 3000;
 export const CODE_TRUNCATE_LIMIT = 4000;
 export const THINKING_BUDGET = 32768;

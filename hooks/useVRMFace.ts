@@ -83,9 +83,13 @@ export function useVRMFace({
     if (!vrm) return { isSpeaking: false, headReact: false, curAa: 0 };
 
     const analyser = analyserRef?.current;
-    const profile = EMOTION_PROFILES[emotionMode];
     const T = trackingRef?.current;
     const tracked = T?.active || false;
+    const isMiddleFinger = T?.isMiddleFinger || false;
+
+    // Force emotion to angry if middle finger is detected
+    const effectiveEmotionMode = isMiddleFinger ? 'angry' : emotionMode;
+    const profile = EMOTION_PROFILES[effectiveEmotionMode];
 
     const tgt: Record<EK, number> = {
       aa: 0, ee: 0, ih: 0, oh: 0, ou: 0, blink: 0, angry: 0, happy: 0, sad: 0, relaxed: 0, surprised: 0, cheekPuff: 0
@@ -133,8 +137,8 @@ export function useVRMFace({
         tgt.ou = cl(low * Math.max(0, 0.45 - tgt.aa) * vol * 1.60 * pv.ou * lm, 0, 1);
 
         for (const [k, v] of Object.entries(profile.secondary)) tgt[k as EK] = cl((v as number) * (0.6 + vol * 0.4), 0, 1);
-        if (emotionMode === 'happy') tgt.happy = cl(high * vol * 1.10 + 0.6, 0, 1);
-        if (headReact && emotionMode === 'angry') { tgt.angry = 1.0; tgt.aa = cl(tgt.aa * 1.25, 0, 1); }
+        if (effectiveEmotionMode === 'happy') tgt.happy = cl(high * vol * 1.10 + 0.6, 0, 1);
+        if (headReact && effectiveEmotionMode === 'angry') { tgt.angry = 1.0; tgt.aa = cl(tgt.aa * 1.25, 0, 1); }
       }
     } else if (speechLevel !== undefined) {
       // Fallback to speechLevel provided by props
@@ -153,8 +157,8 @@ export function useVRMFace({
         tgt.ou = cl(vol * 1.60 * pv.ou * lm, 0, 1);
 
         for (const [k, v] of Object.entries(profile.secondary)) tgt[k as EK] = cl((v as number) * (0.6 + vol * 0.4), 0, 1);
-        if (emotionMode === 'happy') tgt.happy = cl(vol * 1.10 + 0.6, 0, 1);
-        if (headReact && emotionMode === 'angry') { tgt.angry = 1.0; tgt.aa = cl(tgt.aa * 1.25, 0, 1); }
+        if (effectiveEmotionMode === 'happy') tgt.happy = cl(vol * 1.10 + 0.6, 0, 1);
+        if (headReact && effectiveEmotionMode === 'angry') { tgt.angry = 1.0; tgt.aa = cl(tgt.aa * 1.25, 0, 1); }
 
         // Give the AI independent, organic, and EXTREMELY expressive child-like animations
         moodTimer.current -= delta;

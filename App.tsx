@@ -33,6 +33,9 @@ const App: React.FC = () => {
     setMessages: session.setMessages,
     onUpdateContext: (lang, title, desc, code) => {
       session.setDynamicProblem(lang, title, desc, code);
+    },
+    onTypeCode: (newCode) => {
+      session.typeCodeEffect(newCode);
     }
   });
 
@@ -56,6 +59,7 @@ const App: React.FC = () => {
             speechLevel={live.speechLevel}
             isLiveConnected={live.isLiveConnected}
             subtitles={live.subtitles}
+            agentState={live.agentState}
           />
           <DescriptionBanner description={session.currentProblem.description} />
           <div className="flex-1 relative">
@@ -94,6 +98,11 @@ interface HeaderProps {
     isLiveConnected: boolean;
     isConnectingLive: boolean;
     volume: number;
+    isMicMuted: boolean;
+    isCameraEnabled: boolean;
+    sessionTokens: { prompt: number; candidates: number; total: number };
+    toggleMic: () => void;
+    toggleCamera: () => void;
     handleConnectLive: () => void;
     handleDisconnectLive: () => void;
   };
@@ -127,12 +136,17 @@ function Header({ currentProblem, onRandomProblem, live }: HeaderProps) {
       </div>
 
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <LiveControls
+        <LiveControls 
           isConnected={live.isLiveConnected}
           isConnecting={live.isConnectingLive}
           onConnect={live.handleConnectLive}
           onDisconnect={live.handleDisconnectLive}
           volume={live.volume}
+          isMicMuted={live.isMicMuted}
+          onToggleMic={live.toggleMic}
+          isCameraEnabled={live.isCameraEnabled}
+          onToggleCamera={live.toggleCamera}
+          sessionTokens={live.sessionTokens}
         />
       </div>
     </header>

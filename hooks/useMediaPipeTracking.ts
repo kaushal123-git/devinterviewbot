@@ -47,6 +47,7 @@ export interface TrackingData {
   gesture: string;   // categoryName from GestureRecognizer (e.g. 'Open_Palm')
   handDetected: boolean;
   handRaised: boolean;
+  isMiddleFinger: boolean;
 
   // ── Motion / idle detection ──────────────────────────────────────────────
   motionEnergy: number;   // rolling RMS of landmark delta (0 = perfectly still)
@@ -62,7 +63,7 @@ export const DEFAULT_TRACKING: TrackingData = {
   mouthSmile: 0, jawOpen: 0, mouthFunnel: 0, mouthPucker: 0,
   browInnerUp: 0, cheekPuff: 0,
   handToMouth: false, isGiggling: false, gesture: 'None',
-  handDetected: false, handRaised: false,
+  handDetected: false, handRaised: false, isMiddleFinger: false,
   motionEnergy: 0, isBored: false,
 };
 
@@ -323,6 +324,27 @@ export function useMediaPipeTracking() {
               handRaised = true;
             }
           }
+
+          // Middle Finger Detection (Heuristic based on joint Y coordinates)
+          // 12 is Middle Tip, 10 is Middle PIP, 9 is Middle MCP
+          // 8 is Index Tip, 6 is Index PIP
+          // 16 is Ring Tip, 14 is Ring PIP
+          // 20 is Pinky Tip, 18 is Pinky PIP
+          if (hand.length >= 21) {
+            const isMiddleUp = hand[12].y < hand[10].y && hand[12].y < hand[9].y;
+            const isIndexDown = hand[8].y > hand[6].y;
+            const isRingDown = hand[16].y > hand[14].y;
+            const isPinkyDown = hand[20].y > hand[18].y;
+            const isMiddleHighest = hand[12].y < hand[8].y && hand[12].y < hand[16].y;
+            
+            if (isMiddleUp && isIndexDown && isRingDown && isPinkyDown && isMiddleHighest) {
+              T.isMiddleFinger = true;
+            } else {
+              T.isMiddleFinger = false;
+            }
+          }
+        } else {
+          T.isMiddleFinger = false;
         }
 
         T.handToMouth = handToMouth;
@@ -345,6 +367,7 @@ export function useMediaPipeTracking() {
         T.gesture = 'None';
         T.handDetected = false;
         T.handRaised = false;
+        T.isMiddleFinger = false;
         T.handPoints = [];
         T.facePoints = [];
       }

@@ -21,6 +21,9 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
   const [code, setCode] = useState(PROBLEMS[0].starters.python);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
+  
+  // Animation Ref
+  const typeEffectIntervalRef = useRef<number | null>(null);
 
   // Refs for values read inside async callbacks — avoids stale closures
   // and keeps useCallback dependency arrays minimal.
@@ -99,6 +102,8 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
       setCurrentProblem(dynamicProblem);
       setLanguage(lang as InterviewLanguage);
       setCode(starterCode);
+
+      console.log(`[useInterviewSession] Successfully changed problem to: "${title}" in ${lang}`);
     },
     []
   );
@@ -171,6 +176,28 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
     [apiKey],
   );
 
+  const typeCodeEffect = useCallback((targetCode: string) => {
+    // Clear any existing animation
+    if (typeEffectIntervalRef.current) clearInterval(typeEffectIntervalRef.current);
+    
+    let currentIndex = 0;
+    // Set to 5 characters per tick for a smooth, fast typing effect
+    const charsPerTick = 5;
+    
+    // Clear the current editor first
+    setCode("");
+    
+    typeEffectIntervalRef.current = window.setInterval(() => {
+      currentIndex += charsPerTick;
+      if (currentIndex >= targetCode.length) {
+        setCode(targetCode);
+        if (typeEffectIntervalRef.current) clearInterval(typeEffectIntervalRef.current);
+      } else {
+        setCode(targetCode.substring(0, currentIndex));
+      }
+    }, 20); // 20ms per tick
+  }, []);
+
   const latestModelText = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === 'model' && messages[i].text.trim()) {
@@ -195,6 +222,7 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
     handleLanguageChange,
     handleSendMessage,
     setLiveRefs,
+    typeCodeEffect,
     latestModelText,
   } as const;
 }
