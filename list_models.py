@@ -1,6 +1,7 @@
 import requests
+import os
 
-api_key = "AIzaSyDcy_xFgRevDvnNw6LMHounYdn2VwqCO64"
+api_key = os.environ.get("VITE_API_KEY", "")
 url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
 
 response = requests.get(url)
