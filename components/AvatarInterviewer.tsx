@@ -1,5 +1,5 @@
-import React, { Suspense, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Loader2, Mic, Volume2 } from 'lucide-react';
+import React, { Suspense, useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
+import { GripHorizontal, Loader2, Mic, Minus, Plus, RotateCcw, Volume2 } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { VRMLoaderPlugin, VRMHumanBoneName, type VRM } from '@pixiv/three-vrm';
 import * as THREE from 'three';
@@ -39,10 +39,12 @@ function VRMHead({
   speechLevel,
   trackingRef,
   cursorRef,
+  scale,
 }: {
   speechLevel: number;
   trackingRef: React.RefObject<TrackingData>;
   cursorRef: React.RefObject<THREE.Vector2>;
+  scale: number;
 }) {
   // `rootRef` is the Three.js group that will receive the VRM scene once loaded.
   const rootRef = useRef<THREE.Group>(null);
@@ -123,7 +125,31 @@ function VRMHead({
     vrm.update(delta);
   });
 
-  return <group ref={rootRef} position={[0, -1.56, 0]} />;
+  return <group ref={rootRef} position={[0, -1.56, 0]} scale={scale} />;
+}
+
+interface AvatarLayout {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+}
+
+const AVATAR_LAYOUT_KEY = 'devinterview-avatar-layout';
+
+function getDefaultLayout(): AvatarLayout {
+  const width = typeof window !== 'undefined' && window.innerWidth < 640 ? 210 : 320;
+  return { x: 0, y: 0, width, height: width, zoom: 1 };
+}
+
+function getInitialLayout(): AvatarLayout {
+  try {
+    const saved = localStorage.getItem(AVATAR_LAYOUT_KEY);
+    return saved ? { ...getDefaultLayout(), ...JSON.parse(saved) } : getDefaultLayout();
+  } catch {
+    return getDefaultLayout();
+  }
 }
 
 export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInterviewerProps>(
@@ -132,6 +158,64 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webcamDotsRef = useRef<HTMLCanvasElement>(null);
   const cursorRef = useRef(new THREE.Vector2(0, 0));
+  const [layout, setLayout] = useState<AvatarLayout>(getInitialLayout);
+  const interactionRef = useRef<{
+    type: 'drag' | 'resize';
+    startX: number;
+    startY: number;
+    layout: AvatarLayout;
+  } | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem(AVATAR_LAYOUT_KEY, JSON.stringify(layout));
+  }, [layout]);
+
+  const beginInteraction = (type: 'drag' | 'resize') => (event: React.PointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    interactionRef.current = {
+      type,
+      startX: event.clientX,
+      startY: event.clientY,
+      layout,
+    };
+  };
+
+  const updateInteraction = (event: React.PointerEvent<HTMLElement>) => {
+    const interaction = interactionRef.current;
+    if (!interaction) return;
+
+    const dx = event.clientX - interaction.startX;
+    const dy = event.clientY - interaction.startY;
+    if (interaction.type === 'drag') {
+      setLayout({
+        ...interaction.layout,
+        x: interaction.layout.x + dx,
+        y: interaction.layout.y + dy,
+      });
+      return;
+    }
+
+    setLayout({
+      ...interaction.layout,
+      width: THREE.MathUtils.clamp(interaction.layout.width + dx, 190, 520),
+      height: THREE.MathUtils.clamp(interaction.layout.height + dy, 190, 520),
+    });
+  };
+
+  const endInteraction = (event: React.PointerEvent<HTMLElement>) => {
+    interactionRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const changeZoom = (amount: number) => {
+    setLayout((current) => ({
+      ...current,
+      zoom: THREE.MathUtils.clamp(current.zoom + amount, 0.7, 1.5),
+    }));
+  };
+
+  const resetLayout = () => setLayout(getDefaultLayout());
 
   useEffect(() => {
     if (isLiveConnected && isCameraEnabled) {
@@ -238,12 +322,19 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
   // and `canvasRef` remain hidden — they are only used for capture and for the
   // tracking pipeline; the visible UI is the 3D Canvas and a small status label.
   return (
-    <section className="pointer-events-none absolute right-4 top-4 z-20 h-[210px] w-[210px] sm:h-[260px] sm:w-[260px] lg:h-[320px] lg:w-[320px] rounded-2xl border border-subtle bg-panel/85 shadow-lg overflow-hidden">
+    <section
+      className="pointer-events-auto absolute right-4 top-4 z-20 rounded-lg border border-subtle bg-panel/85 shadow-lg overflow-hidden"
+      style={{
+        width: layout.width,
+        height: layout.height,
+        transform: `translate3d(${layout.x}px, ${layout.y}px, 0)`,
+      }}
+    >
       {/* Hidden canvas used by MediaPipe and capture API */}
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Webcam preview with landmark dots so user can see live tracking */}
-      <div className="fixed top-4 right-4 z-[9999] w-48 h-auto rounded-xl border border-white/20 shadow-lg overflow-hidden">
+      <div className="absolute bottom-3 right-3 z-20 w-24 rounded-md border border-white/20 bg-black shadow-lg overflow-hidden">
         <video
           ref={tracking.videoRef}
           playsInline
@@ -275,9 +366,42 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
             speechLevel={speechLevel}
             trackingRef={tracking.trackingRef}
             cursorRef={cursorRef}
+            scale={layout.zoom}
           />
         </Suspense>
       </Canvas>
+
+      <div
+        className="absolute left-1/2 top-1 z-30 flex h-7 -translate-x-1/2 touch-none cursor-move items-center gap-0.5 rounded-md border border-subtle bg-panel/90 px-1 shadow-sm backdrop-blur-md"
+        onPointerDown={beginInteraction('drag')}
+        onPointerMove={updateInteraction}
+        onPointerUp={endInteraction}
+        onPointerCancel={endInteraction}
+        title="Drag interviewer"
+      >
+        <GripHorizontal className="h-4 w-4 text-secondary" />
+      </div>
+
+      <div className="absolute right-2 top-2 z-30 flex items-center rounded-md border border-subtle bg-panel/90 p-0.5 shadow-sm backdrop-blur-md">
+        <button type="button" className="grid h-7 w-7 place-items-center text-secondary hover:text-primary" onClick={() => changeZoom(-0.1)} title="Zoom out">
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" className="grid h-7 w-7 place-items-center text-secondary hover:text-primary" onClick={() => changeZoom(0.1)} title="Zoom in">
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" className="grid h-7 w-7 place-items-center text-secondary hover:text-primary" onClick={resetLayout} title="Reset position and size">
+          <RotateCcw className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div
+        className="absolute bottom-0 right-0 z-30 h-5 w-5 touch-none cursor-se-resize border-b-2 border-r-2 border-secondary/60"
+        onPointerDown={beginInteraction('resize')}
+        onPointerMove={updateInteraction}
+        onPointerUp={endInteraction}
+        onPointerCancel={endInteraction}
+        title="Resize interviewer"
+      />
 
       {/* Agent State Badge */}
       {isLiveConnected && agentState && agentState !== 'idle' && (
