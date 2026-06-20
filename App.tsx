@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import CodeEditor, { type CodeEditorHandle } from '@/components/CodeEditor';
 import ChatPanel from '@/components/ChatPanel';
 import LiveControls from '@/components/LiveControls';
@@ -44,12 +44,19 @@ const App: React.FC = () => {
     session.setLiveRefs(live.isLiveConnected, live.liveServiceRef);
   }, [live.isLiveConnected, live.liveServiceRef, session.setLiveRefs]);
 
+  const totalTokens = useMemo(() => ({
+    prompt: session.chatTokens.prompt + live.sessionTokens.prompt,
+    candidates: session.chatTokens.candidates + live.sessionTokens.candidates,
+    total: session.chatTokens.total + live.sessionTokens.total,
+  }), [session.chatTokens, live.sessionTokens]);
+
   return (
     <div className="h-screen w-full flex flex-col bg-app text-primary font-sans overflow-hidden transition-colors duration-300">
       <Header
         currentProblem={session.currentProblem}
         onRandomProblem={session.handleRandomProblem}
         live={live}
+        sessionTokens={totalTokens}
       />
 
       <main className="flex-1 flex overflow-hidden">
@@ -58,6 +65,7 @@ const App: React.FC = () => {
             ref={avatarRef}
             speechLevel={live.speechLevel}
             isLiveConnected={live.isLiveConnected}
+            isCameraEnabled={live.isCameraEnabled}
             subtitles={live.subtitles}
             agentState={live.agentState}
           />
@@ -94,6 +102,7 @@ export default App;
 interface HeaderProps {
   currentProblem: { title: string; difficulty: 'Easy' | 'Medium' | 'Hard' };
   onRandomProblem: () => void;
+  sessionTokens: { prompt: number; candidates: number; total: number };
   live: {
     isLiveConnected: boolean;
     isConnectingLive: boolean;
@@ -108,7 +117,7 @@ interface HeaderProps {
   };
 }
 
-function Header({ currentProblem, onRandomProblem, live }: HeaderProps) {
+function Header({ currentProblem, onRandomProblem, live, sessionTokens }: HeaderProps) {
   const difficultyClass =
     currentProblem.difficulty === 'Easy'
       ? 'border-emerald-900/50 text-emerald-500'
@@ -146,7 +155,7 @@ function Header({ currentProblem, onRandomProblem, live }: HeaderProps) {
           onToggleMic={live.toggleMic}
           isCameraEnabled={live.isCameraEnabled}
           onToggleCamera={live.toggleCamera}
-          sessionTokens={live.sessionTokens}
+          sessionTokens={sessionTokens}
         />
       </div>
     </header>

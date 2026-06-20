@@ -1,11 +1,47 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ChatMessage, InterviewLanguage, InterviewProblem } from '@/types';
 import type { LiveService } from '@/services/liveService';
-import { generateChatMessage } from '@/services/geminiService';
+import { streamChatMessage, type TokenUsage } from '@/services/geminiService';
 import { PROBLEMS } from '@/constants';
 
 interface UseInterviewSessionParams {
   apiKey: string;
+}
+
+interface SessionTokenTotals {
+  prompt: number;
+  candidates: number;
+  total: number;
+}
+
+function takeSpeakableChunk(text: string, force: boolean = false) {
+  const trimmed = text.trim();
+  if (!trimmed) return { chunk: '', rest: '' };
+
+  const sentenceMatch = text.match(/^[\s\S]*?[.!?](?:\s+|$)/);
+  if (sentenceMatch?.[0] && sentenceMatch[0].trim().length >= 18) {
+    return {
+      chunk: sentenceMatch[0].trim(),
+      rest: text.slice(sentenceMatch[0].length),
+    };
+  }
+
+  const lineBreakIndex = text.indexOf('\n');
+  if (lineBreakIndex >= 40) {
+    return {
+      chunk: text.slice(0, lineBreakIndex).trim(),
+      rest: text.slice(lineBreakIndex + 1),
+    };
+  }
+
+  if (force || trimmed.length >= 180) {
+    return {
+      chunk: trimmed,
+      rest: '',
+    };
+  }
+
+  return { chunk: '', rest: text };
 }
 
 /**
@@ -21,6 +57,7 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
   const [code, setCode] = useState(PROBLEMS[0].starters.python);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const [chatTokens, setChatTokens] = useState<SessionTokenTotals>({ prompt: 0, candidates: 0, total: 0 });
   
   // Animation Ref
   const typeEffectIntervalRef = useRef<number | null>(null);
@@ -108,6 +145,30 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
     []
   );
 
+  const addChatUsageDelta = useCallback((usage: TokenUsage, previousUsage: SessionTokenTotals) => {
+    const nextUsage = {
+      prompt: usage.promptTokenCount || 0,
+      candidates: usage.candidatesTokenCount || 0,
+      total: usage.totalTokenCount || 0,
+    };
+
+    const delta = {
+      prompt: Math.max(0, nextUsage.prompt - previousUsage.prompt),
+      candidates: Math.max(0, nextUsage.candidates - previousUsage.candidates),
+      total: Math.max(0, nextUsage.total - previousUsage.total),
+    };
+
+    if (delta.prompt || delta.candidates || delta.total) {
+      setChatTokens(prev => ({
+        prompt: prev.prompt + delta.prompt,
+        candidates: prev.candidates + delta.candidates,
+        total: prev.total + delta.total,
+      }));
+    }
+
+    return nextUsage;
+  }, []);
+
   const handleSendMessage = useCallback(
     async (text: string, useThinking: boolean) => {
       const newUserMsg: ChatMessage = {
@@ -140,32 +201,78 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
 
       setIsLoadingChat(true);
       try {
-        const responseText = await generateChatMessage(
+        const speechService = liveServiceExtRef.current;
+        const modelMessageId = (Date.now() + 1).toString();
+        let speechBuffer = '';
+        let responseText = '';
+        let lastUsage: SessionTokenTotals = { prompt: 0, candidates: 0, total: 0 };
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: modelMessageId,
+            role: 'model',
+            text: '',
+            timestamp: Date.now(),
+            isThinking: useThinking,
+          },
+        ]);
+
+        speechService?.stopSpeech();
+        speechService?.prepareForSpeech().catch((error) => {
+          console.warn('[useInterviewSession] Failed to prepare speech audio:', error);
+        });
+
+        const flushSpeech = (force: boolean = false) => {
+          if (!speechService) return;
+
+          let next = takeSpeakableChunk(speechBuffer, force);
+          while (next.chunk) {
+            speechService.speak(next.chunk, { interrupt: false }).catch((error) => {
+              console.warn('[useInterviewSession] Failed to speak chat chunk:', error);
+            });
+            speechBuffer = next.rest;
+            next = takeSpeakableChunk(speechBuffer, force);
+          }
+        };
+
+        responseText = await streamChatMessage(
           apiKey,
           history,
           contextPrompt + '\n' + text,
           codeRef.current,
           useThinking,
+          (chunk) => {
+            responseText += chunk;
+            speechBuffer += chunk;
+
+            setMessages(prev => prev.map(message =>
+              message.id === modelMessageId
+                ? { ...message, text: message.text + chunk }
+                : message
+            ));
+
+            flushSpeech(false);
+          },
+          (usage) => {
+            lastUsage = addChatUsageDelta(usage, lastUsage);
+          },
         );
 
-        const newBotMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'model',
-          text: responseText || 'No response generated.',
-          timestamp: Date.now(),
-          isThinking: useThinking,
-        };
-        setMessages(prev => [...prev, newBotMsg]);
+        flushSpeech(true);
 
-        // Speak the response via TTS
-        if (liveServiceExtRef.current && responseText) {
-          liveServiceExtRef.current.speak(responseText);
+        if (!responseText) {
+          setMessages(prev => prev.map(message =>
+            message.id === modelMessageId
+              ? { ...message, text: 'No response generated.' }
+              : message
+          ));
         }
-      } catch {
+      } catch (error: any) {
         const errorMsg: ChatMessage = {
           id: (Date.now() + 2).toString(),
           role: 'model',
-          text: 'An error occurred while generating a response. Please try again.',
+          text: error?.message || 'An error occurred while generating a response. Please try again.',
           timestamp: Date.now(),
         };
         setMessages(prev => [...prev, errorMsg]);
@@ -218,6 +325,7 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
     messages,
     setMessages,
     isLoadingChat,
+    chatTokens,
     handleRandomProblem,
     handleLanguageChange,
     handleSendMessage,

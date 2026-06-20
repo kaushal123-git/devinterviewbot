@@ -11,6 +11,7 @@ const L_DOWN = -1.35;
 export interface UseVRMPoseArgs {
   vrmRef: React.RefObject<VRM | null>;
   trackingRef?: React.RefObject<TrackingData>;
+  cursorRef?: React.RefObject<THREE.Vector2>;
   emotionMode: EmotionMode;
   behaviorMode: BehaviorMode;
   isNodding: boolean;
@@ -22,6 +23,7 @@ export interface UseVRMPoseArgs {
 export function useVRMPose({
   vrmRef,
   trackingRef,
+  cursorRef,
   emotionMode,
   behaviorMode,
   isNodding,
@@ -70,6 +72,12 @@ export function useVRMPose({
     if (!h) return;
     const T = trackingRef?.current;
     const tracked = T?.active || false;
+    const cursor = cursorRef?.current;
+    const cursorX = THREE.MathUtils.clamp(cursor?.x ?? 0, -1, 1);
+    const cursorY = THREE.MathUtils.clamp(cursor?.y ?? 0, -1, 1);
+    const cursorActive = Math.abs(cursorX) > 0.01 || Math.abs(cursorY) > 0.01;
+    const cursorYaw = cursorX * 0.28;
+    const cursorPitch = cursorY * 0.20;
 
     swP.current += delta * 0.28;
     boredSwayPh.current += delta * 0.12;
@@ -141,7 +149,7 @@ export function useVRMPose({
       }
 
       if (!isSpeaking && !headReact && waveTimer.current <= 0 && behaviorMode === 'neutral') {
-        if (Math.random() < 0.003) foldedHandsTimer.current = 2.0 + Math.random() * 4.0;
+        if (Math.random() < 0.0007) foldedHandsTimer.current = 1.5 + Math.random() * 2.5;
       }
       if (isSpeaking || headReact || waveTimer.current > 0) foldedHandsTimer.current = 0;
       if (foldedHandsTimer.current > 0) foldedHandsTimer.current -= delta;
@@ -231,6 +239,16 @@ export function useVRMPose({
         head.rotation.x = lp(head.rotation.x, Math.sin(s * 0.61) * amp * 1.2 - brth * 0.5 + lTargY * 0.7, 0.05);
         head.rotation.y = lp(head.rotation.y, Math.sin(s * 0.44) * amp * 0.7 + lTargX * 0.6, 0.05);
         head.rotation.z = lp(head.rotation.z, Math.sin(s) * amp * 0.35, 0.030);
+      }
+
+      if (cursorActive && behaviorMode === 'neutral' && !isNodding && !isShaking) {
+        const cursorWeight = tracked ? 0.35 : 0.65;
+        const cursorAlpha = isSpeaking ? 0.035 : 0.055;
+        neck.rotation.y = lp(neck.rotation.y, cursorYaw * 0.25 * cursorWeight, cursorAlpha);
+        neck.rotation.x = lp(neck.rotation.x, cursorPitch * 0.25 * cursorWeight, cursorAlpha);
+        head.rotation.y = lp(head.rotation.y, cursorYaw * 0.62 * cursorWeight, cursorAlpha);
+        head.rotation.x = lp(head.rotation.x, cursorPitch * 0.58 * cursorWeight, cursorAlpha);
+        head.rotation.z = lp(head.rotation.z, -cursorYaw * 0.05 * cursorWeight, cursorAlpha * 0.6);
       }
     }
 
@@ -386,38 +404,37 @@ export function useVRMPose({
       if (lLA) { lLA.rotation.x = lp(lLA.rotation.x, 0, 0.05); }
       if (rHd) { rHd.rotation.x = lp(rHd.rotation.x, 0, 0.05); rHd.rotation.z = lp(rHd.rotation.z, 0, 0.05); }
     } else if (isSpeaking) {
-      const intensity = emotionMode === 'angry' ? 1.4 : emotionMode === 'happy' ? 1.2 : 1.0;
-      // Make it more expressive for children: wider, more frequent hand movements
-      const b1 = Math.sin(now * 3.8) * 0.35 * intensity;
-      const b2 = Math.sin(now * 3.8 + Math.PI * .5) * 0.35 * intensity;
-      const wave1 = Math.sin(now * 1.5) * 0.2;
-      const wave2 = Math.cos(now * 1.8) * 0.2;
+      const intensity = emotionMode === 'angry' ? 1.15 : emotionMode === 'happy' ? 1.08 : 1.0;
+      const b1 = Math.sin(now * 2.6) * 0.14 * intensity;
+      const b2 = Math.sin(now * 2.6 + Math.PI * .5) * 0.14 * intensity;
+      const wave1 = Math.sin(now * 1.2) * 0.08;
+      const wave2 = Math.cos(now * 1.35) * 0.08;
 
-      if (rSh) { rSh.rotation.z = lp(rSh.rotation.z, 0.05, 0.06); rSh.rotation.x = lp(rSh.rotation.x, -0.05, 0.06); }
-      if (lSh) { lSh.rotation.z = lp(lSh.rotation.z, -0.05, 0.06); lSh.rotation.x = lp(lSh.rotation.x, -0.05, 0.06); }
+      if (rSh) { rSh.rotation.z = lp(rSh.rotation.z, 0.02, 0.05); rSh.rotation.x = lp(rSh.rotation.x, -0.02, 0.05); }
+      if (lSh) { lSh.rotation.z = lp(lSh.rotation.z, -0.02, 0.05); lSh.rotation.x = lp(lSh.rotation.x, -0.02, 0.05); }
 
       // Speaking motion: keep both arms near neutral and avoid overhead poses.
       if (rUA) {
-        rUA.rotation.x = lp(rUA.rotation.x, -0.08 + wave1 * 0.14, 0.10);
-        rUA.rotation.y = lp(rUA.rotation.y, 0.08, 0.10);
-        rUA.rotation.z = lp(rUA.rotation.z, R_DOWN + 0.05 + b1 * 0.03, 0.10);
+        rUA.rotation.x = lp(rUA.rotation.x, -0.03 + wave1 * 0.06, 0.08);
+        rUA.rotation.y = lp(rUA.rotation.y, 0.03, 0.08);
+        rUA.rotation.z = lp(rUA.rotation.z, R_DOWN + 0.02 + b1 * 0.02, 0.08);
       }
       // Mild elbow movement while speaking.
       if (rLA) {
-        rLA.rotation.x = lp(rLA.rotation.x, -0.28 + b1 * 0.12, 0.13);
-        rLA.rotation.z = lp(rLA.rotation.z, 0.05 + wave1 * 0.12, 0.13);
+        rLA.rotation.x = lp(rLA.rotation.x, -0.12 + b1 * 0.08, 0.10);
+        rLA.rotation.z = lp(rLA.rotation.z, 0.02 + wave1 * 0.07, 0.10);
       }
       if (lUA) {
-        lUA.rotation.x = lp(lUA.rotation.x, -0.08 + wave2 * 0.14, 0.09);
-        lUA.rotation.y = lp(lUA.rotation.y, -0.08, 0.09);
-        lUA.rotation.z = lp(lUA.rotation.z, L_DOWN - 0.05 - b2 * 0.03, 0.09);
+        lUA.rotation.x = lp(lUA.rotation.x, -0.03 + wave2 * 0.06, 0.08);
+        lUA.rotation.y = lp(lUA.rotation.y, -0.03, 0.08);
+        lUA.rotation.z = lp(lUA.rotation.z, L_DOWN - 0.02 - b2 * 0.02, 0.08);
       }
       if (lLA) {
-        lLA.rotation.x = lp(lLA.rotation.x, -0.28 + b2 * 0.12, 0.11);
-        lLA.rotation.z = lp(lLA.rotation.z, -0.05 + wave2 * 0.12, 0.11);
+        lLA.rotation.x = lp(lLA.rotation.x, -0.12 + b2 * 0.08, 0.10);
+        lLA.rotation.z = lp(lLA.rotation.z, -0.02 + wave2 * 0.07, 0.10);
       }
-      if (rHd) { rHd.rotation.x = lp(rHd.rotation.x, -0.2, 0.08); rHd.rotation.z = lp(rHd.rotation.z, b1 * 0.4, 0.08); }
-      if (lHd) { lHd.rotation.x = lp(lHd.rotation.x, -0.2, 0.08); lHd.rotation.z = lp(lHd.rotation.z, b2 * 0.4, 0.08); }
+      if (rHd) { rHd.rotation.x = lp(rHd.rotation.x, -0.08, 0.07); rHd.rotation.z = lp(rHd.rotation.z, b1 * 0.18, 0.07); }
+      if (lHd) { lHd.rotation.x = lp(lHd.rotation.x, -0.08, 0.07); lHd.rotation.z = lp(lHd.rotation.z, b2 * 0.18, 0.07); }
     } else if (foldedHandsTimer.current > 0) {
       if (rSh) { rSh.rotation.z = lp(rSh.rotation.z, 0.1, 0.05); rSh.rotation.x = lp(rSh.rotation.x, -0.1, 0.05); }
       if (lSh) { lSh.rotation.z = lp(lSh.rotation.z, -0.1, 0.05); lSh.rotation.x = lp(lSh.rotation.x, -0.1, 0.05); }
@@ -462,10 +479,12 @@ export function useVRMPose({
     if (leftEye && rightEye) {
       // Offset the X rotation heavily so the avatar looks 'up' slightly by default
       const UP_ANGLE = -0.12;
-      leftEye.rotation.y = lp(leftEye.rotation.y, saccadeTarget.current.x, 0.3);
-      leftEye.rotation.x = lp(leftEye.rotation.x, saccadeTarget.current.y + UP_ANGLE, 0.3);
-      rightEye.rotation.y = lp(rightEye.rotation.y, saccadeTarget.current.x, 0.3);
-      rightEye.rotation.x = lp(rightEye.rotation.x, saccadeTarget.current.y + UP_ANGLE, 0.3);
+      const eyeCursorX = cursorActive ? cursorX * 0.32 : 0;
+      const eyeCursorY = cursorActive ? cursorY * 0.22 : 0;
+      leftEye.rotation.y = lp(leftEye.rotation.y, saccadeTarget.current.x * 0.65 + eyeCursorX, 0.42);
+      leftEye.rotation.x = lp(leftEye.rotation.x, saccadeTarget.current.y * 0.55 + eyeCursorY + UP_ANGLE, 0.42);
+      rightEye.rotation.y = lp(rightEye.rotation.y, saccadeTarget.current.x * 0.65 + eyeCursorX, 0.42);
+      rightEye.rotation.x = lp(rightEye.rotation.x, saccadeTarget.current.y * 0.55 + eyeCursorY + UP_ANGLE, 0.42);
     } else if (head) {
       head.rotation.y += saccadeTarget.current.x * 0.2;
       head.rotation.x += saccadeTarget.current.y * 0.2;

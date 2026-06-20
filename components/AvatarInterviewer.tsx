@@ -26,6 +26,7 @@ import { useMediaPipeTracking, type TrackingData } from '../hooks/useMediaPipeTr
 interface AvatarInterviewerProps {
   speechLevel: number;
   isLiveConnected: boolean;
+  isCameraEnabled: boolean;
   subtitles?: string;
   agentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
 }
@@ -34,7 +35,15 @@ export interface AvatarInterviewerHandle {
   captureWebcamFrame: () => string | null;
 }
 
-function VRMHead({ speechLevel, trackingRef }: { speechLevel: number; trackingRef: React.RefObject<TrackingData> }) {
+function VRMHead({
+  speechLevel,
+  trackingRef,
+  cursorRef,
+}: {
+  speechLevel: number;
+  trackingRef: React.RefObject<TrackingData>;
+  cursorRef: React.RefObject<THREE.Vector2>;
+}) {
   // `rootRef` is the Three.js group that will receive the VRM scene once loaded.
   const rootRef = useRef<THREE.Group>(null);
   // `vrmRef` holds the loaded VRM instance so the frame loop can update it.
@@ -55,6 +64,7 @@ function VRMHead({ speechLevel, trackingRef }: { speechLevel: number; trackingRe
   const pose = useVRMPose({
     vrmRef,
     trackingRef,
+    cursorRef,
     emotionMode: 'neutral',
     behaviorMode: 'neutral',
     isNodding: false,
@@ -117,22 +127,51 @@ function VRMHead({ speechLevel, trackingRef }: { speechLevel: number; trackingRe
 }
 
 export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInterviewerProps>(
-  ({ speechLevel, isLiveConnected, subtitles, agentState }, ref) => {
-  // Start the tracking pipeline immediately when this component mounts.
+  ({ speechLevel, isLiveConnected, isCameraEnabled, subtitles, agentState }, ref) => {
   const tracking = useMediaPipeTracking();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webcamDotsRef = useRef<HTMLCanvasElement>(null);
+  const cursorRef = useRef(new THREE.Vector2(0, 0));
 
   useEffect(() => {
-    tracking.startTracking();
-    return () => { tracking.stopTracking(); };
-  }, [tracking.startTracking, tracking.stopTracking]);
+    if (isLiveConnected && isCameraEnabled) {
+      tracking.startTracking();
+      return () => { tracking.stopTracking(); };
+    }
+
+    tracking.stopTracking();
+    return undefined;
+  }, [isLiveConnected, isCameraEnabled, tracking.startTracking, tracking.stopTracking]);
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const x = (event.clientX / window.innerWidth) * 2 - 1;
+      const y = (event.clientY / window.innerHeight) * 2 - 1;
+      cursorRef.current.set(
+        THREE.MathUtils.clamp(x, -1, 1),
+        THREE.MathUtils.clamp(y, -1, 1),
+      );
+    };
+
+    const onPointerLeave = () => {
+      cursorRef.current.set(0, 0);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerleave', onPointerLeave);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerleave', onPointerLeave);
+    };
+  }, []);
 
   // Expose an imperative API so parent components can request a webcam snapshot.
   // `captureWebcamFrame` draws the hidden `<video>` into a `<canvas>` and returns
   // a base64 JPEG payload (without the data: prefix).
   useImperativeHandle(ref, () => ({
     captureWebcamFrame: () => {
+      if (!isLiveConnected || !isCameraEnabled) return null;
+
       const video = tracking.videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas || video.readyState < 2) return null;
@@ -217,8 +256,12 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
           className="absolute inset-0 w-full h-full pointer-events-none"
           style={{ transform: 'scaleX(-1)' }}
         />
-        {!isLiveConnected && (
-          <p className="text-xs text-white/50 animate-pulse mt-1">Connecting to Live AI...</p>
+        {(!isLiveConnected || !isCameraEnabled) && (
+          <div className="absolute inset-0 grid place-items-center bg-black/80 px-3 text-center">
+            <p className="text-xs text-white/70">
+              {isLiveConnected ? 'Camera off' : 'Camera idle'}
+            </p>
+          </div>
         )}
       </div>
 
@@ -228,7 +271,11 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
         <directionalLight position={[-2, 1.5, -2]} intensity={0.5} color="#b8c4ff" />
         <Suspense fallback={null}>
           {/* VRMHead contains the VRM load + per-frame face/pose ticks */}
-          <VRMHead speechLevel={speechLevel} trackingRef={tracking.trackingRef} />
+          <VRMHead
+            speechLevel={speechLevel}
+            trackingRef={tracking.trackingRef}
+            cursorRef={cursorRef}
+          />
         </Suspense>
       </Canvas>
 

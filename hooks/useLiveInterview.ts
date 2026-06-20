@@ -51,6 +51,7 @@ export function useLiveInterview({
   const lastSentCodeRef = useRef<string>('');
   const currentModelTurnIdRef = useRef<string | null>(null);
   const isCameraEnabledRef = useRef(isCameraEnabled);
+  const connectWarningRef = useRef<string | null>(null);
   
   const lastUserSpeechTime = useRef<number>(0);
   const lastAISpeechTime = useRef<number>(0);
@@ -142,6 +143,7 @@ export function useLiveInterview({
 
     try {
       setIsConnectingLive(true);
+      connectWarningRef.current = null;
 
       const sessionInstruction = `
         ${SYSTEM_INSTRUCTION_INTERVIEWER}
@@ -152,6 +154,21 @@ export function useLiveInterview({
 
       await liveServiceRef.current.connect({
         systemInstruction: sessionInstruction,
+        onStateChange: (state) => {
+          if (state === 'connected') {
+            setIsLiveConnected(true);
+            return;
+          }
+
+          if (state === 'closed' || state === 'error') {
+            setIsLiveConnected(false);
+            setVolume(0);
+            setSpeechLevel(0);
+          }
+        },
+        onWarning: (message) => {
+          connectWarningRef.current = message;
+        },
         onMessage: (msg) => {
           if (!currentModelTurnIdRef.current) {
              currentModelTurnIdRef.current = Date.now().toString();
@@ -240,8 +257,6 @@ export function useLiveInterview({
         }
       });
 
-      setIsLiveConnected(true);
-
       // Visual confirmation in the transcript
       setTimeout(() => {
         setMessages(prev => [
@@ -252,6 +267,15 @@ export function useLiveInterview({
             text: 'Voice Session Connected',
             timestamp: Date.now(),
           },
+          ...(connectWarningRef.current
+            ? [{
+                id: (Date.now() + 1).toString(),
+                role: 'model' as const,
+                text: connectWarningRef.current,
+                timestamp: Date.now(),
+                source: 'system' as const,
+              }]
+            : []),
         ]);
       }, 1000);
 
@@ -264,8 +288,19 @@ export function useLiveInterview({
           }
         }
       }, VIDEO_FRAME_INTERVAL_MS);
-    } catch {
-      // Connection failed
+    } catch (error: any) {
+      console.error('[Live] Failed to connect voice session:', error);
+      setIsLiveConnected(false);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          role: 'model',
+          text: error?.message || 'Voice connection failed. Please check mic permission, API key, and Live API access.',
+          timestamp: Date.now(),
+          source: 'system',
+        },
+      ]);
     } finally {
       setIsConnectingLive(false);
     }
@@ -285,8 +320,12 @@ export function useLiveInterview({
   const toggleMic = useCallback(() => {
     if (liveServiceRef.current) {
       const currentMuted = liveServiceRef.current.isMicMuted;
-      liveServiceRef.current.setMicMuted(!currentMuted);
-      setIsMicMuted(!currentMuted);
+      const nextMuted = !currentMuted;
+      setIsMicMuted(nextMuted);
+      liveServiceRef.current.setMicMuted(nextMuted).catch((error) => {
+        console.error('[Live] Failed to toggle microphone:', error);
+        setIsMicMuted(currentMuted);
+      });
     }
   }, []);
 

@@ -18,6 +18,7 @@ type LiveSession = Awaited<ReturnType<GoogleGenAI['live']['connect']>>;
 export interface LiveConnectOptions {
   onMessage?: (message: { text: string; partial?: boolean }) => void;
   onStateChange?: (state: 'connecting' | 'connected' | 'closed' | 'error') => void;
+  onWarning?: (message: string) => void;
   systemInstruction?: string;
   initialMessage?: string;
   onToolCall?: (functionCall: any) => void;
@@ -50,7 +51,11 @@ export class LiveService {
   private nextStartTime: number = 0;
   private activeSources: Set<AudioBufferSourceNode> = new Set();
   private isConnected: boolean = false;
-  private isMicrophoneMuted: boolean = false;
+  private isManualMicMuted: boolean = false;
+  private isTextTurnMuted: boolean = false;
+  private textTurnMuteTimeoutId: number | null = null;
+  private speechQueue: Promise<void> = Promise.resolve();
+  private speechGeneration: number = 0;
 
   public onVolumeChange: ((volume: number) => void) | null = null;
   public onOutputLevelChange: ((level: number) => void) | null = null;
@@ -64,89 +69,107 @@ export class LiveService {
     if (this.isConnected) return;
     options?.onStateChange?.('connecting');
 
-    await this.ensureAudioContexts();
+    let stream: MediaStream | null = null;
+    try {
+      stream = await this.requestMicrophone();
+      this.inputStream = stream;
+      this.inputAudioContext = await this.ensureSingleContext(this.inputAudioContext, INPUT_SAMPLE_RATE);
+    } catch (error) {
+      const message = this.describeMicrophoneError(error);
+      console.warn('[LiveService] Microphone unavailable, connecting without mic:', error);
+      options?.onWarning?.(message);
+    }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    this.inputStream = stream;
+    try {
+      this.outputAudioContext = await this.ensureSingleContext(this.outputAudioContext, OUTPUT_SAMPLE_RATE);
+      this.ensureOutputNodes();
+    } catch (error) {
+      console.warn('[LiveService] Output audio setup will retry when audio arrives:', error);
+    }
 
     const instructionText = options?.systemInstruction || SYSTEM_INSTRUCTION_INTERVIEWER;
 
-    this.session = await this.ai.live.connect({
-      model: GEMINI_LIVE_MODEL,
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: DEFAULT_VOICE_NAME } },
-        },
-        systemInstruction: {
-          parts: [{ text: instructionText }]
-        },
-        tools: [{
-          functionDeclarations: [
-            {
-              name: 'update_interview_context',
-              description: 'Changes the interview programming language and sets a new dynamically generated problem. Use this when the user asks to switch languages, or asks for a new interview question.',
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  language: {
-                    type: Type.STRING,
-                    description: 'The programming language (e.g. "python", "typescript", "javascript", "java", "cpp", "c")'
+    try {
+      this.session = await this.ai.live.connect({
+        model: GEMINI_LIVE_MODEL,
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: DEFAULT_VOICE_NAME } },
+          },
+          systemInstruction: {
+            parts: [{ text: instructionText }]
+          },
+          tools: [{
+            functionDeclarations: [
+              {
+                name: 'update_interview_context',
+                description: 'Changes the interview programming language and sets a new dynamically generated problem. Use this when the user asks to switch languages, or asks for a new interview question.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    language: {
+                      type: Type.STRING,
+                      description: 'The programming language (e.g. "python", "typescript", "javascript", "java", "cpp", "c")'
+                    },
+                    problemTitle: {
+                      type: Type.STRING,
+                      description: 'Title of the new coding problem'
+                    },
+                    problemDescription: {
+                      type: Type.STRING,
+                      description: 'Detailed markdown description of the new problem requirements and constraints'
+                    },
+                    starterCode: {
+                      type: Type.STRING,
+                      description: 'Initial starter code for the user to begin with in the specified language'
+                    }
                   },
-                  problemTitle: {
-                    type: Type.STRING,
-                    description: 'Title of the new coding problem'
+                  required: ['language', 'problemTitle', 'problemDescription', 'starterCode']
+                }
+              },
+              {
+                name: 'type_code',
+                description: 'Types or replaces code directly in the code editor. Use this tool when the user asks you to write code, provide an example, fix a bug, or type something out.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    code: {
+                      type: Type.STRING,
+                      description: 'The exact code to write into the code editor. This will completely replace the current contents of the editor.'
+                    }
                   },
-                  problemDescription: {
-                    type: Type.STRING,
-                    description: 'Detailed markdown description of the new problem requirements and constraints'
-                  },
-                  starterCode: {
-                    type: Type.STRING,
-                    description: 'Initial starter code for the user to begin with in the specified language'
-                  }
-                },
-                required: ['language', 'problemTitle', 'problemDescription', 'starterCode']
+                  required: ['code']
+                }
               }
-            },
-            {
-              name: 'type_code',
-              description: 'Types or replaces code directly in the code editor. Use this tool when the user asks you to write code, provide an example, fix a bug, or type something out.',
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  code: {
-                    type: Type.STRING,
-                    description: 'The exact code to write into the code editor. This will completely replace the current contents of the editor.'
-                  }
-                },
-                required: ['code']
-              }
-            }
-          ]
-        }],
-      },
-      callbacks: {
-        onopen: async () => {
-          console.log('[LiveService] WebSocket connected successfully.');
-          this.isConnected = true;
-          options?.onStateChange?.('connected');
+            ]
+          }],
         },
-        onmessage: async (msg: LiveServerMessage) => {
-          this.handleServerMessage(msg, options?.onMessage, options);
+        callbacks: {
+          onopen: async () => {
+            console.log('[LiveService] WebSocket connected successfully.');
+            this.isConnected = true;
+            options?.onStateChange?.('connected');
+          },
+          onmessage: async (msg: LiveServerMessage) => {
+            this.handleServerMessage(msg, options?.onMessage, options);
+          },
+          onclose: (event: any) => {
+            console.warn('[LiveService] WebSocket closed:', event);
+            this.isConnected = false;
+            options?.onStateChange?.('closed');
+          },
+          onerror: (err: any) => {
+            console.error('[LiveService] WebSocket error:', err);
+            this.isConnected = false;
+            options?.onStateChange?.('error');
+          },
         },
-        onclose: (event: any) => {
-          console.warn('[LiveService] WebSocket closed:', event);
-          this.isConnected = false;
-          options?.onStateChange?.('closed');
-        },
-        onerror: (err: any) => {
-          console.error('[LiveService] WebSocket error:', err);
-          this.isConnected = false;
-          options?.onStateChange?.('error');
-        },
-      },
-    });
+      });
+    } catch (error) {
+      this.stopAudioInput(true);
+      throw error;
+    }
 
     // Send initial trigger BEFORE audio so the model responds to the text prompt
     // rather than ambient silence.
@@ -156,7 +179,9 @@ export class LiveService {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    this.startAudioInput(stream);
+    if (stream) {
+      this.startAudioInput(stream);
+    }
   }
 
   // --- Audio Context Helpers ---
@@ -184,6 +209,47 @@ export class LiveService {
     }
     if (ctx.state === 'suspended') await ctx.resume();
     return ctx;
+  }
+
+  private async requestMicrophone() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Microphone access is not available in this browser.');
+    }
+
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+    } catch (error) {
+      // Retry with the broadest constraints in case a specific enhancement is unsupported.
+      return await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => {
+        throw error;
+      });
+    }
+  }
+
+  private describeMicrophoneError(error: unknown) {
+    const err = error as { name?: string; message?: string };
+    const detail = err?.message ? ` (${err.message})` : '';
+
+    if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
+      return 'Microphone permission is blocked. Allow mic access in the browser, then reconnect voice.';
+    }
+
+    if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+      return 'No microphone was found. Connect or select an input device, then reconnect voice.';
+    }
+
+    if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+      return `Microphone is busy or could not start${detail}. Close other apps/tabs using the mic, then reconnect voice.`;
+    }
+
+    return `Microphone could not start${detail}. The voice session connected without mic input.`;
   }
 
   /** Creates shared output nodes for audio playback + level metering. */
@@ -262,6 +328,8 @@ export class LiveService {
   // --- Microphone Input ---
 
   private startAudioInput(stream: MediaStream) {
+    this.stopAudioInput(false);
+
     if (!this.inputAudioContext || !this.session) return;
 
     this.inputSource = this.inputAudioContext.createMediaStreamSource(stream);
@@ -272,7 +340,7 @@ export class LiveService {
 
       // CRITICAL: While processing a text turn, do NOT send any audio data.
       // Even silence frames signal "user is speaking" and cancel the text turn.
-      if (this.isMicrophoneMuted) return;
+      if (this.isEffectiveMicMuted()) return;
 
       const inputData = e.inputBuffer.getChannelData(0);
 
@@ -302,6 +370,26 @@ export class LiveService {
     this.processor.connect(this.inputAudioContext.destination);
   }
 
+  private stopAudioInput(stopStream: boolean = true) {
+    if (this.processor) {
+      this.processor.onaudioprocess = null;
+      this.processor.disconnect();
+      this.processor = null;
+    }
+
+    if (this.inputSource) {
+      this.inputSource.disconnect();
+      this.inputSource = null;
+    }
+
+    if (stopStream && this.inputStream) {
+      this.inputStream.getTracks().forEach((track) => track.stop());
+      this.inputStream = null;
+    }
+
+    if (this.onVolumeChange) this.onVolumeChange(0);
+  }
+
   // --- Server Message Handling ---
 
   private async handleServerMessage(
@@ -329,15 +417,14 @@ export class LiveService {
 
     if (serverContent.interrupted) {
       this.stopAudioPlayback();
+      this.clearTextTurnMute();
     }
 
     if (serverContent.modelTurn?.parts?.[0]?.inlineData) {
       const audioData = serverContent.modelTurn.parts[0].inlineData.data;
       if (audioData) {
-        // Unmute microphone when the model starts speaking so the user can interrupt
-        if (this.isMicrophoneMuted) {
-          this.isMicrophoneMuted = false;
-        }
+        // Re-enable barge-in as soon as model audio begins.
+        this.clearTextTurnMute();
         this.playAudioChunk(audioData);
       }
     }
@@ -423,6 +510,12 @@ export class LiveService {
     if (this.onOutputLevelChange) this.onOutputLevelChange(0);
   }
 
+  public stopSpeech() {
+    this.speechGeneration += 1;
+    this.speechQueue = Promise.resolve();
+    this.stopAudioPlayback();
+  }
+
   // --- Public Messaging API ---
 
   /** Sends a JPEG frame of the code editor for the model's vision input. */
@@ -451,16 +544,20 @@ export class LiveService {
 
     const prompt = `[SYSTEM UPDATE] The user has updated their code:\n\`\`\`${safeCode}\`\`\`\nReview the code silently in the background. Do NOT speak to acknowledge this update unless the user explicitly asked you a question about it.`;
     console.log('[LiveService] Sending code context update.');
-    await this.sendText(prompt);
+    await this.sendText(prompt, { temporaryMuteMic: false });
   }
 
   /**
    * Sends a text turn to the live session.
    */
-  public async sendText(text: string) {
+  public async sendText(text: string, options: { temporaryMuteMic?: boolean } = {}) {
     if (!this.session || !this.isConnected) return;
 
     try {
+      if (options.temporaryMuteMic !== false) {
+        this.startTextTurnMute();
+      }
+
       await this.session.sendClientContent({
         turns: [{ role: 'user', parts: [{ text }] }],
         turnComplete: true,
@@ -474,12 +571,46 @@ export class LiveService {
   // --- Microphone Controls ---
 
   public get isMicMuted() {
-    return this.isMicrophoneMuted;
+    return this.isManualMicMuted;
   }
 
-  public setMicMuted(muted: boolean) {
-    this.isMicrophoneMuted = muted;
+  public async setMicMuted(muted: boolean) {
+    if (muted === this.isManualMicMuted) return;
+
+    this.isManualMicMuted = muted;
+
+    if (muted) {
+      this.stopAudioInput(true);
+    } else if (this.isConnected) {
+      await this.ensureAudioContexts();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.inputStream = stream;
+      this.startAudioInput(stream);
+    }
+
     console.log(`[LiveService] Microphone is now ${muted ? 'MUTED' : 'UNMUTED'}.`);
+  }
+
+  private isEffectiveMicMuted() {
+    return this.isManualMicMuted || this.isTextTurnMuted;
+  }
+
+  private startTextTurnMute() {
+    this.isTextTurnMuted = true;
+    if (this.textTurnMuteTimeoutId !== null) {
+      window.clearTimeout(this.textTurnMuteTimeoutId);
+    }
+    this.textTurnMuteTimeoutId = window.setTimeout(() => {
+      this.clearTextTurnMute();
+    }, MIC_UNMUTE_TIMEOUT_MS);
+  }
+
+  private clearTextTurnMute() {
+    this.isTextTurnMuted = false;
+    if (this.textTurnMuteTimeoutId !== null) {
+      window.clearTimeout(this.textTurnMuteTimeoutId);
+      this.textTurnMuteTimeoutId = null;
+    }
   }
 
   /** Sends a response back to the server after a tool call completes */
@@ -494,8 +625,33 @@ export class LiveService {
   }
 
   /** Generates speech from text using the Gemini TTS model and plays it. */
-  public async speak(text: string) {
-    try {
+  public async speak(text: string, options: { interrupt?: boolean } = {}) {
+    const interrupt = options.interrupt ?? true;
+
+    if (interrupt) {
+      this.speechGeneration += 1;
+      this.speechQueue = Promise.resolve();
+      await this.prepareForSpeech();
+      this.stopAudioPlayback();
+    }
+
+    const generation = this.speechGeneration;
+    const speakTask = this.speechQueue
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await this.generateAndPlaySpeech(text, generation);
+        } catch (error) {
+          console.error('[LiveService] speak error generating content:', error);
+        }
+      });
+
+    this.speechQueue = speakTask;
+    await speakTask;
+  }
+
+  private async generateAndPlaySpeech(text: string, generation: number) {
+      await this.prepareForSpeech();
       const response = await this.ai.models.generateContent({
         model: GEMINI_TTS_MODEL,
         contents: [{ parts: [{ text }] }],
@@ -511,17 +667,23 @@ export class LiveService {
 
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
+        if (generation !== this.speechGeneration) return;
         await this.playAudioChunk(base64Audio);
       } else {
         console.warn('[LiveService] speak response did not contain base64 audio data. Response candidates:', response.candidates);
       }
-    } catch (error) {
-      console.error('[LiveService] speak error generating content:', error);
-    }
+  }
+
+  /** Primes output audio so playback can begin immediately when TTS arrives. */
+  public async prepareForSpeech() {
+    this.outputAudioContext = await this.ensureSingleContext(this.outputAudioContext, OUTPUT_SAMPLE_RATE);
+    this.ensureOutputNodes();
   }
 
   /** Tears down the live session, releases microphone, and closes audio contexts. */
   public async disconnect() {
+    this.speechGeneration += 1;
+    this.speechQueue = Promise.resolve();
     this.stopAudioPlayback();
 
     // Close the WebSocket session before dropping the reference
@@ -530,15 +692,14 @@ export class LiveService {
       this.session = null;
     }
 
-    if (this.inputSource) this.inputSource.disconnect();
-    if (this.processor) this.processor.disconnect();
-    if (this.inputStream) {
-      this.inputStream.getTracks().forEach((track) => track.stop());
-      this.inputStream = null;
-    }
+    this.stopAudioInput(true);
 
-    if (this.inputAudioContext) await this.inputAudioContext.close();
-    if (this.outputAudioContext) await this.outputAudioContext.close();
+    if (this.inputAudioContext && this.inputAudioContext.state !== 'closed') {
+      await this.inputAudioContext.close();
+    }
+    if (this.outputAudioContext && this.outputAudioContext.state !== 'closed') {
+      await this.outputAudioContext.close();
+    }
 
     this.stopOutputMetering();
     this.outputMixGain = null;
@@ -547,6 +708,7 @@ export class LiveService {
     this.inputAudioContext = null;
     this.outputAudioContext = null;
     this.isConnected = false;
-    this.isMicrophoneMuted = false;
+    this.isManualMicMuted = false;
+    this.clearTextTurnMute();
   }
 }

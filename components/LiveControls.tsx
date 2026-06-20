@@ -26,9 +26,8 @@ const LiveControls: React.FC<LiveControlsProps> = ({
   onToggleCamera,
   sessionTokens
 }) => {
-  // Rough estimate based on Gemini 2.0 Flash Audio/Text typical prices
-  // Mixed modality estimation: $0.30 per 1M tokens average
-  const roughCostCents = sessionTokens ? (sessionTokens.total / 1_000_000 * 30).toFixed(2) : "0.00";
+  // Rough estimate based on a mixed audio/text average of $0.30 per 1M tokens.
+  const roughCostDollars = sessionTokens ? (sessionTokens.total / 1_000_000 * 0.30).toFixed(4) : "0.0000";
 
   if (isConnected) {
     return (
@@ -80,10 +79,10 @@ const LiveControls: React.FC<LiveControlsProps> = ({
           <Square className="w-3 h-3 fill-current" />
         </button>
       </div>
-      {sessionTokens && sessionTokens.total > 0 && (
+      {sessionTokens && (
         <div className="text-[10px] text-secondary/60 bg-panel/50 px-2 py-0.5 rounded-full border border-subtle backdrop-blur-sm shadow-sm flex gap-3 mr-2">
           <span><span className="font-medium text-primary/70">{sessionTokens.total.toLocaleString()}</span> tokens</span>
-          <span>~<span className="font-medium text-primary/70">¢{roughCostCents}</span></span>
+          <span>~<span className="font-medium text-primary/70">${roughCostDollars}</span></span>
         </div>
       )}
       </div>
