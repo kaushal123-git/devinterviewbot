@@ -136,7 +136,7 @@ interface AvatarLayout {
   zoom: number;
 }
 
-const AVATAR_LAYOUT_KEY = 'devinterview-avatar-layout';
+const AVATAR_LAYOUT_KEY = 'devinterview-avatar-layout-v2';
 
 function getDefaultLayout(): AvatarLayout {
   const width = typeof window !== 'undefined' && window.innerWidth < 640 ? 210 : 320;
@@ -164,6 +164,8 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
     startX: number;
     startY: number;
     layout: AvatarLayout;
+    parentWidth: number;
+    parentHeight: number;
   } | null>(null);
 
   useEffect(() => {
@@ -173,11 +175,14 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
   const beginInteraction = (type: 'drag' | 'resize') => (event: React.PointerEvent<HTMLElement>) => {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    const parentRect = event.currentTarget.closest('section')?.parentElement?.getBoundingClientRect();
     interactionRef.current = {
       type,
       startX: event.clientX,
       startY: event.clientY,
       layout,
+      parentWidth: parentRect?.width ?? window.innerWidth,
+      parentHeight: parentRect?.height ?? window.innerHeight,
     };
   };
 
@@ -188,10 +193,12 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
     const dx = event.clientX - interaction.startX;
     const dy = event.clientY - interaction.startY;
     if (interaction.type === 'drag') {
+      const minX = Math.min(0, interaction.layout.width + 32 - interaction.parentWidth);
+      const maxY = Math.max(0, interaction.parentHeight - 64);
       setLayout({
         ...interaction.layout,
-        x: interaction.layout.x + dx,
-        y: interaction.layout.y + dy,
+        x: THREE.MathUtils.clamp(interaction.layout.x + dx, minX, 0),
+        y: THREE.MathUtils.clamp(interaction.layout.y + dy, 0, maxY),
       });
       return;
     }
@@ -333,69 +340,65 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
       {/* Hidden canvas used by MediaPipe and capture API */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Webcam preview with landmark dots so user can see live tracking */}
-      <div className="absolute bottom-3 right-3 z-20 w-24 rounded-md border border-white/20 bg-black shadow-lg overflow-hidden">
-        <video
-          ref={tracking.videoRef}
-          playsInline
-          muted
-          className="w-full h-auto"
-          style={{ transform: 'scaleX(-1)' }}
-        />
-        <canvas
-          ref={webcamDotsRef}
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ transform: 'scaleX(-1)' }}
-        />
-        {(!isLiveConnected || !isCameraEnabled) && (
-          <div className="absolute inset-0 grid place-items-center bg-black/80 px-3 text-center">
-            <p className="text-xs text-white/70">
-              {isLiveConnected ? 'Camera off' : 'Camera idle'}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <Canvas camera={{ position: [0, 0.04, 0.98], fov: 32 }} style={{ background: 'transparent' }}>
-        <ambientLight intensity={1.05} />
-        <directionalLight position={[2, 4, 3]} intensity={1.2} />
-        <directionalLight position={[-2, 1.5, -2]} intensity={0.5} color="#b8c4ff" />
-        <Suspense fallback={null}>
-          {/* VRMHead contains the VRM load + per-frame face/pose ticks */}
-          <VRMHead
-            speechLevel={speechLevel}
-            trackingRef={tracking.trackingRef}
-            cursorRef={cursorRef}
-            scale={layout.zoom}
-          />
-        </Suspense>
-      </Canvas>
-
       <div
-        className="absolute left-1/2 top-1 z-30 flex h-7 -translate-x-1/2 touch-none cursor-move items-center gap-0.5 rounded-md border border-subtle bg-panel/90 px-1 shadow-sm backdrop-blur-md"
+        className="absolute inset-x-0 top-0 z-30 flex h-10 touch-none cursor-move items-center justify-between border-b border-white/15 bg-zinc-900 px-2 text-white shadow-md"
         onPointerDown={beginInteraction('drag')}
         onPointerMove={updateInteraction}
         onPointerUp={endInteraction}
         onPointerCancel={endInteraction}
         title="Drag interviewer"
       >
-        <GripHorizontal className="h-4 w-4 text-secondary" />
+        <div className="flex items-center gap-2 px-1">
+          <GripHorizontal className="h-4 w-4" />
+          <span className="text-xs font-semibold">Move interviewer</span>
+        </div>
+        <div className="flex items-center" onPointerDown={(event) => event.stopPropagation()}>
+          <button type="button" aria-label="Zoom out" className="grid h-8 w-8 place-items-center rounded text-white/80 hover:bg-white/10 hover:text-white" onClick={() => changeZoom(-0.1)} title="Zoom out">
+            <Minus className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Zoom in" className="grid h-8 w-8 place-items-center rounded text-white/80 hover:bg-white/10 hover:text-white" onClick={() => changeZoom(0.1)} title="Zoom in">
+            <Plus className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Reset interviewer" className="grid h-8 w-8 place-items-center rounded text-white/80 hover:bg-white/10 hover:text-white" onClick={resetLayout} title="Reset position and size">
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="absolute right-2 top-2 z-30 flex items-center rounded-md border border-subtle bg-panel/90 p-0.5 shadow-sm backdrop-blur-md">
-        <button type="button" className="grid h-7 w-7 place-items-center text-secondary hover:text-primary" onClick={() => changeZoom(-0.1)} title="Zoom out">
-          <Minus className="h-3.5 w-3.5" />
-        </button>
-        <button type="button" className="grid h-7 w-7 place-items-center text-secondary hover:text-primary" onClick={() => changeZoom(0.1)} title="Zoom in">
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-        <button type="button" className="grid h-7 w-7 place-items-center text-secondary hover:text-primary" onClick={resetLayout} title="Reset position and size">
-          <RotateCcw className="h-3.5 w-3.5" />
-        </button>
+      {/* Webcam preview with landmark dots so user can see live tracking */}
+      <div className={`absolute bottom-3 right-3 z-20 w-24 overflow-hidden rounded-md border border-white/20 bg-black shadow-lg ${isLiveConnected && isCameraEnabled ? '' : 'hidden'}`}>
+        <video
+          ref={tracking.videoRef}
+          playsInline
+          muted
+          className="h-auto w-full"
+          style={{ transform: 'scaleX(-1)' }}
+        />
+        <canvas
+          ref={webcamDotsRef}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          style={{ transform: 'scaleX(-1)' }}
+        />
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 top-10">
+        <Canvas camera={{ position: [0, 0.04, 0.98], fov: 32 }} style={{ background: 'transparent' }}>
+          <ambientLight intensity={1.05} />
+          <directionalLight position={[2, 4, 3]} intensity={1.2} />
+          <directionalLight position={[-2, 1.5, -2]} intensity={0.5} color="#b8c4ff" />
+          <Suspense fallback={null}>
+            <VRMHead
+              speechLevel={speechLevel}
+              trackingRef={tracking.trackingRef}
+              cursorRef={cursorRef}
+              scale={layout.zoom}
+            />
+          </Suspense>
+        </Canvas>
       </div>
 
       <div
-        className="absolute bottom-0 right-0 z-30 h-5 w-5 touch-none cursor-se-resize border-b-2 border-r-2 border-secondary/60"
+        className="absolute bottom-0 right-0 z-30 h-6 w-6 touch-none cursor-se-resize border-b-4 border-r-4 border-zinc-900 bg-white/60"
         onPointerDown={beginInteraction('resize')}
         onPointerMove={updateInteraction}
         onPointerUp={endInteraction}
@@ -405,7 +408,7 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
 
       {/* Agent State Badge */}
       {isLiveConnected && agentState && agentState !== 'idle' && (
-        <div className="absolute top-4 left-4 bg-panel/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-subtle shadow-sm flex items-center gap-2 animate-in fade-in zoom-in duration-300 z-10">
+        <div className="absolute top-12 left-4 bg-panel/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-subtle shadow-sm flex items-center gap-2 animate-in fade-in zoom-in duration-300 z-10">
           {agentState === 'listening' && <Mic className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />}
           {agentState === 'thinking' && <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />}
           {agentState === 'speaking' && <Volume2 className="w-3.5 h-3.5 text-primary animate-pulse" />}
