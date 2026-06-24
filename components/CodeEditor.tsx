@@ -87,12 +87,12 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
   const lineCount = code.split('\n').length;
 
   return (
-    <div className={`relative w-full h-full flex flex-col bg-app transition-colors duration-300 ${className}`}>
+    <div className={`relative w-full h-full min-h-0 flex flex-col bg-app transition-colors duration-300 ${className}`}>
       {/* Hidden canvas for AI vision */}
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Main Editor Area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 min-h-0 flex overflow-hidden relative">
         
         {/* Line Numbers Column */}
         <div 
@@ -111,12 +111,13 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
           value={code}
           onChange={(e) => onChange(e.target.value)}
           onScroll={handleScroll}
-          className="flex-1 w-full h-full bg-transparent text-primary font-mono text-sm leading-6 p-4 resize-none focus:outline-none placeholder-secondary/50 selection:bg-subtle selection:text-primary whitespace-pre transition-colors duration-300"
-          style={{ fontFamily: '"JetBrains Mono", monospace', lineHeight: '1.5rem', tabSize: 4 }}
+          className="flex-1 w-full h-full min-h-0 overflow-y-scroll overflow-x-auto bg-transparent text-primary font-mono text-sm leading-6 p-4 resize-none focus:outline-none placeholder-secondary/50 selection:bg-subtle selection:text-primary whitespace-pre transition-colors duration-300"
+          style={{ fontFamily: '"JetBrains Mono", monospace', lineHeight: '1.5rem', tabSize: 4, scrollbarGutter: 'stable' }}
           spellCheck={false}
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
+          wrap="off"
           placeholder="// Write your solution here..."
         />
       </div>
@@ -145,25 +146,28 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
 
             {/* Language Selector */}
             <div className="flex items-center gap-1 bg-subtle/20 p-0.5 rounded">
-                <button 
-                    onClick={() => onLanguageChange('python')}
-                    className={`px-2 py-0.5 rounded-sm transition-all ${language === 'python' ? 'bg-panel text-primary shadow-sm' : 'text-secondary hover:text-primary'}`}
-                >
-                    Python
-                </button>
-                <button 
-                    onClick={() => onLanguageChange('typescript')}
-                    className={`px-2 py-0.5 rounded-sm transition-all ${language === 'typescript' ? 'bg-panel text-primary shadow-sm' : 'text-secondary hover:text-primary'}`}
-                >
-                    TypeScript
-                </button>
-                {language !== 'python' && language !== 'typescript' && (
-                  <button 
-                      className={`px-2 py-0.5 rounded-sm transition-all bg-panel text-primary shadow-sm capitalize`}
-                  >
-                      {language}
-                  </button>
-                )}
+                {(['python', 'typescript', 'c', 'cpp', 'java'] as InterviewLanguage[]).map((lang) => {
+                  const labelMap: Record<InterviewLanguage, string> = {
+                    python: 'Python',
+                    typescript: 'TypeScript',
+                    c: 'C',
+                    cpp: 'C++',
+                    java: 'Java'
+                  };
+                  return (
+                    <button
+                      key={lang}
+                      onClick={() => onLanguageChange(lang)}
+                      className={`px-2 py-0.5 rounded-sm transition-all ${
+                        language === lang
+                          ? 'bg-panel text-primary shadow-sm'
+                          : 'text-secondary hover:text-primary'
+                      }`}
+                    >
+                      {labelMap[lang]}
+                    </button>
+                  );
+                })}
             </div>
         </div>
       </div>

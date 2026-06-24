@@ -74,7 +74,7 @@ const App: React.FC = () => {
             onAvatarChange={setIsFemale}
           />
           <DescriptionBanner description={session.currentProblem.description} />
-          <div className="flex-1 relative">
+          <div className="flex-1 min-h-0 relative">
             <CodeEditor
               ref={editorRef}
               code={session.code}

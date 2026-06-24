@@ -7,7 +7,7 @@ import {
   SYSTEM_INSTRUCTION_INTERVIEWER,
   CODE_DEBOUNCE_MS,
   VIDEO_FRAME_INTERVAL_MS,
-  DEFAULT_VOICE_NAME,
+  MALE_VOICE_NAME,
   FEMALE_VOICE_NAME,
 } from '@/constants';
 
@@ -68,6 +68,8 @@ export function useLiveInterview({
   const isLiveConnectedRef = useRef(isLiveConnected);
   const connectWarningRef = useRef<string | null>(null);
   const isConnectingLiveRef = useRef(false);
+  const isSwitchingVoiceRef = useRef(false);
+  const selectedVoiceRef = useRef(isFemale ? FEMALE_VOICE_NAME : MALE_VOICE_NAME);
   
   const lastUserSpeechTime = useRef<number>(0);
   const lastAISpeechTime = useRef<number>(0);
@@ -80,19 +82,15 @@ export function useLiveInterview({
   useEffect(() => { isCameraEnabledRef.current = isCameraEnabled; }, [isCameraEnabled]);
   useEffect(() => { isLiveConnectedRef.current = isLiveConnected; }, [isLiveConnected]);
 
-  useEffect(() => {
-    liveServiceRef.current?.setVoiceName(isFemale ? FEMALE_VOICE_NAME : DEFAULT_VOICE_NAME);
-  }, [isFemale]);
-
   // Initialise LiveService once when apiKey is available
   useEffect(() => {
     if (apiKey && !liveServiceRef.current) {
       liveServiceRef.current = new LiveService(apiKey);
-      liveServiceRef.current.setVoiceName(isFemale ? FEMALE_VOICE_NAME : DEFAULT_VOICE_NAME);
+      liveServiceRef.current.setVoiceName(selectedVoiceRef.current);
       liveServiceRef.current.onVolumeChange = (vol) => setVolume(vol);
       liveServiceRef.current.onOutputLevelChange = (level) => setSpeechLevel(level);
     }
-  }, [apiKey, isFemale]);
+  }, [apiKey]);
 
   // Cleanup on unmount — disconnect WebSocket and release microphone
   useEffect(() => {
@@ -168,7 +166,7 @@ export function useLiveInterview({
 
     const problem = currentProblemRef.current;
     const lang = languageRef.current;
-    const voiceName = isFemale ? FEMALE_VOICE_NAME : DEFAULT_VOICE_NAME;
+    const voiceName = selectedVoiceRef.current;
 
     try {
       isConnectingLiveRef.current = true;
@@ -324,26 +322,28 @@ export function useLiveInterview({
       });
 
       // Visual confirmation in the transcript
-      setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            role: 'user' as const,
-            text: 'Voice Session Connected',
-            timestamp: Date.now(),
-          },
-          ...(connectWarningRef.current
-            ? [{
-                id: (Date.now() + 1).toString(),
-                role: 'model' as const,
-                text: connectWarningRef.current,
-                timestamp: Date.now(),
-                source: 'system' as const,
-              }]
-            : []),
-        ]);
-      }, 1000);
+      if (!isSwitchingVoiceRef.current) {
+        setTimeout(() => {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              role: 'user' as const,
+              text: 'Voice Session Connected',
+              timestamp: Date.now(),
+            },
+            ...(connectWarningRef.current
+              ? [{
+                  id: (Date.now() + 1).toString(),
+                  role: 'model' as const,
+                  text: connectWarningRef.current,
+                  timestamp: Date.now(),
+                  source: 'system' as const,
+                }]
+              : []),
+          ]);
+        }, 1000);
+      }
 
       // Begin periodic video frame capture of the WebCam
       videoIntervalRef.current = window.setInterval(async () => {
@@ -371,10 +371,10 @@ export function useLiveInterview({
       isConnectingLiveRef.current = false;
       setIsConnectingLive(false);
     }
-  }, [apiKey, avatarRef, isFemale, onTypeCode, onUpdateContext, setMessages]);
+  }, [apiKey, avatarRef, onTypeCode, onUpdateContext, setMessages]);
 
-  const handleDisconnectLive = useCallback(async () => {
-    if (liveServiceRef.current) await liveServiceRef.current.disconnect();
+  const handleDisconnectLive = useCallback(async (options?: { keepAudioContexts?: boolean }) => {
+    if (liveServiceRef.current) await liveServiceRef.current.disconnect(options);
     if (videoIntervalRef.current) {
       clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = null;
@@ -401,6 +401,48 @@ export function useLiveInterview({
   const toggleCamera = useCallback(() => {
     setIsCameraEnabled(prev => !prev);
   }, []);
+
+  // Gemini Live applies its voice when a session is created. If the user
+  // changes interviewer avatars during a live interview, quietly recreate
+  // only the voice connection so the visible avatar and spoken voice match.
+  useEffect(() => {
+    const nextVoiceName = isFemale ? FEMALE_VOICE_NAME : MALE_VOICE_NAME;
+    const voiceChanged = selectedVoiceRef.current !== nextVoiceName;
+    selectedVoiceRef.current = nextVoiceName;
+    liveServiceRef.current?.setVoiceName(nextVoiceName);
+
+    if (!voiceChanged || !isLiveConnectedRef.current || isConnectingLiveRef.current) return;
+
+    let cancelled = false;
+
+    const switchLiveVoice = async () => {
+      const wasMicMuted = liveServiceRef.current?.isMicMuted ?? false;
+      isSwitchingVoiceRef.current = true;
+      currentModelTurnIdRef.current = null;
+      currentUserSpeechTurnIdRef.current = null;
+      setSubtitles('');
+
+      try {
+        await handleDisconnectLive({ keepAudioContexts: true });
+        if (cancelled) return;
+
+        await handleConnectLive();
+        if (cancelled || !wasMicMuted || !liveServiceRef.current) return;
+
+        await liveServiceRef.current.setMicMuted(true);
+        setIsMicMuted(true);
+      } catch (error) {
+        console.error('[Live] Failed to switch interviewer voice:', error);
+      } finally {
+        isSwitchingVoiceRef.current = false;
+      }
+    };
+
+    switchLiveVoice();
+    return () => {
+      cancelled = true;
+    };
+  }, [isFemale, handleConnectLive, handleDisconnectLive]);
 
   return {
     isLiveConnected,

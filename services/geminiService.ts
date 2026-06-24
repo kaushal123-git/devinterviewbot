@@ -82,11 +82,12 @@ ${currentMessage}
       return `Reasoning model quota is unavailable right now, so I used the regular chat model instead.\n\n${fallbackResult.text}`;
     }
 
+    console.error('[Gemini] generateChatMessage failed:', error);
     if (isQuotaError) {
       throw new Error('Gemini quota is exhausted right now. Please wait a bit or check your API billing/quota.');
     }
 
-    throw new Error('Gemini chat request failed. Please check the API key, model access, or network connection.');
+    throw new Error(`Gemini chat request failed: ${errorText || error}`);
   }
 };
 
@@ -171,10 +172,11 @@ ${currentMessage}
       return fallbackPrefix + fallbackText;
     }
 
+    console.error('[Gemini] streamChatMessage failed:', error);
     if (isQuotaError) {
       throw new Error('Gemini quota is exhausted right now. Please wait a bit or check your API billing/quota.');
     }
 
-    throw new Error('Gemini chat request failed. Please check the API key, model access, or network connection.');
+    throw new Error(`Gemini chat request failed: ${errorText || error}`);
   }
 };

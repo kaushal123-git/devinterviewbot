@@ -92,10 +92,14 @@ export class LiveService {
     if (this.isConnected) return;
     options?.onStateChange?.('connecting');
 
-    let stream: MediaStream | null = null;
+    let stream: MediaStream | null = this.inputStream;
+    const isStreamActive = stream && stream.getTracks().some(track => track.readyState === 'live');
+
     try {
-      stream = await this.requestMicrophone();
-      this.inputStream = stream;
+      if (!isStreamActive) {
+        stream = await this.requestMicrophone();
+        this.inputStream = stream;
+      }
       this.inputAudioContext = await this.ensureSingleContext(this.inputAudioContext, INPUT_SAMPLE_RATE);
     } catch (error) {
       const message = this.describeMicrophoneError(error);
@@ -637,8 +641,13 @@ export class LiveService {
     console.log(`[LiveService] Microphone is now ${muted ? 'MUTED' : 'UNMUTED'}.`);
   }
 
+  private isAudioPlaying(): boolean {
+    if (!this.outputAudioContext) return false;
+    return this.activeSources.size > 0 || this.outputAudioContext.currentTime < this.nextStartTime;
+  }
+
   private isEffectiveMicMuted() {
-    return this.isManualMicMuted || this.isTextTurnMuted;
+    return this.isManualMicMuted || this.isTextTurnMuted || this.isAudioPlaying();
   }
 
   private startTextTurnMute(timeoutMs: number = MIC_UNMUTE_TIMEOUT_MS) {
@@ -783,7 +792,7 @@ export class LiveService {
   }
 
   /** Tears down the live session, releases microphone, and closes audio contexts. */
-  public async disconnect() {
+  public async disconnect(options?: { keepAudioContexts?: boolean }) {
     this.speechGeneration += 1;
     this.speechQueue = Promise.resolve();
     this.stopAudioPlayback();
@@ -794,21 +803,27 @@ export class LiveService {
       this.session = null;
     }
 
-    this.stopAudioInput(true);
+    const keepAudioContexts = options?.keepAudioContexts ?? false;
+    this.stopAudioInput(!keepAudioContexts);
 
-    if (this.inputAudioContext && this.inputAudioContext.state !== 'closed') {
-      await this.inputAudioContext.close();
-    }
-    if (this.outputAudioContext && this.outputAudioContext.state !== 'closed') {
-      await this.outputAudioContext.close();
+    if (!keepAudioContexts) {
+      if (this.inputAudioContext && this.inputAudioContext.state !== 'closed') {
+        await this.inputAudioContext.close();
+      }
+      if (this.outputAudioContext && this.outputAudioContext.state !== 'closed') {
+        await this.outputAudioContext.close();
+      }
+
+      this.outputMixGain = null;
+      this.outputAnalyser = null;
+      this.outputMeterData = null;
+      this.inputAudioContext = null;
+      this.outputAudioContext = null;
+      this.stopOutputMetering();
+    } else {
+      this.stopOutputMetering();
     }
 
-    this.stopOutputMetering();
-    this.outputMixGain = null;
-    this.outputAnalyser = null;
-    this.outputMeterData = null;
-    this.inputAudioContext = null;
-    this.outputAudioContext = null;
     this.isConnected = false;
     this.isManualMicMuted = false;
     this.clearTextTurnMute();

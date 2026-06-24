@@ -38,6 +38,7 @@ function VRMHead({
   scale,
   vrmUrl,
   isFemale,
+  isActive,
 }: {
   speechLevel: number;
   trackingRef: React.RefObject<TrackingData>;
@@ -45,6 +46,7 @@ function VRMHead({
   scale: number;
   vrmUrl: string;
   isFemale: boolean;
+  isActive: boolean;
 }) {
   const rootRef = useRef<THREE.Group>(null);
   const vrmRef = useRef<VRM | null>(null);
@@ -102,6 +104,7 @@ function VRMHead({
   }, [vrmUrl]);
 
   useFrame((state, delta) => {
+    if (!isActive) return;
     const vrm = vrmRef.current;
     if (!vrm) return;
     const now = state.clock.elapsedTime;
@@ -110,7 +113,7 @@ function VRMHead({
     vrm.update(delta);
   });
 
-  return <group ref={rootRef} position={[0, -1.56, 0]} rotation={[0, isFemale ? Math.PI : 0, 0]} scale={scale} />;
+  return <group ref={rootRef} visible={isActive} position={[0, -1.56, 0]} rotation={[0, isFemale ? Math.PI : 0, 0]} scale={scale} />;
 }
 
 interface AvatarLayout {
@@ -145,7 +148,6 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
   const cursorRef = useRef(new THREE.Vector2(0, 0));
   const [layout, setLayout] = useState<AvatarLayout>(getInitialLayout);
   const isFemale = isFemaleprop;
-  const avatarUrl = isFemale ? '/zuuzu.vrm' : '/Anurag.vrm';
   const interactionRef = useRef<{
     type: 'drag' | 'resize';
     startX: number;
@@ -342,8 +344,18 @@ export const AvatarInterviewer = forwardRef<AvatarInterviewerHandle, AvatarInter
               trackingRef={tracking.trackingRef}
               cursorRef={cursorRef}
               scale={layout.zoom}
-              vrmUrl={avatarUrl}
-              isFemale={isFemale}
+              vrmUrl="/Anurag.vrm"
+              isFemale={false}
+              isActive={!isFemale}
+            />
+            <VRMHead
+              speechLevel={speechLevel}
+              trackingRef={tracking.trackingRef}
+              cursorRef={cursorRef}
+              scale={layout.zoom}
+              vrmUrl="/zuuzu.vrm"
+              isFemale={true}
+              isActive={isFemale}
             />
           </Suspense>
         </Canvas>

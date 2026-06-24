@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ChatMessage, InterviewLanguage, InterviewProblem } from '@/types';
 import type { LiveService } from '@/services/liveService';
 import { streamChatMessage, type TokenUsage } from '@/services/geminiService';
+import { FEMALE_VOICE_NAME } from '@/constants';
 import { PROBLEMS } from '@/constants';
 
 interface UseInterviewSessionParams {
@@ -14,7 +15,7 @@ interface SessionTokenTotals {
   total: number;
 }
 
-function takeSpeakableChunk(text: string, force: boolean = false) {
+function takeSpeakableChunk(text: string, force: boolean = false, minBoundaryLength: number = 50) {
   const trimmed = text.trim();
   if (!trimmed) return { chunk: '', rest: '' };
 
@@ -25,7 +26,7 @@ function takeSpeakableChunk(text: string, force: boolean = false) {
   while ((boundary = boundaryRegex.exec(text)) !== null) {
     const end = boundary.index + boundary[0].length;
     lastBoundaryEnd = end;
-    if (end >= 50) {
+    if (end >= minBoundaryLength) {
       return {
         chunk: text.slice(0, end).trim(),
         rest: text.slice(end),
@@ -33,7 +34,7 @@ function takeSpeakableChunk(text: string, force: boolean = false) {
     }
   }
 
-  if (trimmed.length >= 140 && lastBoundaryEnd >= 50) {
+  if (trimmed.length >= 140 && lastBoundaryEnd >= minBoundaryLength) {
     return {
       chunk: text.slice(0, lastBoundaryEnd).trim(),
       rest: text.slice(lastBoundaryEnd),
@@ -41,7 +42,7 @@ function takeSpeakableChunk(text: string, force: boolean = false) {
   }
 
   const lineBreakIndex = text.indexOf('\n');
-  if (lineBreakIndex >= 50) {
+  if (lineBreakIndex >= minBoundaryLength) {
     return {
       chunk: text.slice(0, lineBreakIndex).trim(),
       rest: text.slice(lineBreakIndex + 1),
@@ -79,7 +80,7 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
   // Refs for values read inside async callbacks — avoids stale closures
   // and keeps useCallback dependency arrays minimal.
   const isLiveConnectedRef = useRef(false);
-  const liveServiceExtRef = useRef<LiveService | null>(null);
+  const liveServiceExtRef = useRef<React.RefObject<LiveService | null> | null>(null);
   const liveUserTurnStartedRef = useRef<(() => void) | null>(null);
   const messagesRef = useRef(messages);
   const currentProblemRef = useRef(currentProblem);
@@ -103,7 +104,7 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
       onUserTurnStarted?: () => void,
     ) => {
       isLiveConnectedRef.current = connected;
-      liveServiceExtRef.current = service.current;
+      liveServiceExtRef.current = service; // store the ref object, not a snapshot of .current
       liveUserTurnStartedRef.current = onUserTurnStarted || null;
     },
     [],
@@ -199,13 +200,13 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
       };
       setMessages(prev => [...prev, newUserMsg]);
 
-      const liveSpeechService = liveServiceExtRef.current;
+      const liveSpeechService = liveServiceExtRef.current?.current ?? null;
       if (isLiveConnectedRef.current && liveSpeechService) {
         liveUserTurnStartedRef.current?.();
       }
 
-      // Build history including the message we just added (fixes stale closure)
-      const history = [...messagesRef.current, newUserMsg].map(m => ({
+      // Build history of prior turns (excluding the active user message)
+      const history = messagesRef.current.map(m => ({
         role: m.role,
         text: m.text,
       }));
@@ -220,8 +221,11 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
 
       setIsLoadingChat(true);
       try {
-        const speechService = isLiveConnectedRef.current ? liveServiceExtRef.current : null;
+        const speechService = liveServiceExtRef.current?.current ?? null;
         const speechVoiceName = speechService?.getVoiceName();
+        const effectiveVoice = speechVoiceName || FEMALE_VOICE_NAME;
+        console.log('[useInterviewSession] speechService:', speechService, 'voice:', effectiveVoice, 'liveConnected:', isLiveConnectedRef.current);
+        // Use effectiveVoice for TTS when live is off
         const modelMessageId = (Date.now() + 1).toString();
         let speechBuffer = '';
         let spokenChunkCount = 0;
@@ -241,15 +245,20 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
 
         if (speechService) {
           speechService.stopSpeech();
-          speechService.prepareForSpeech().catch((error) => {
-            console.warn('[useInterviewSession] Failed to prepare speech audio:', error);
-          });
+          if (isLiveConnectedRef.current) {
+            speechService.prepareForSpeech().catch((error) => {
+              console.warn('[useInterviewSession] Failed to prepare speech audio:', error);
+            });
+          }
         }
 
+        // When live voice is ON: stream chunks to TTS for low-latency playback.
+        // When live voice is OFF: collect full response, then speak once for natural prosody.
         const flushSpeech = (force: boolean = false) => {
-          if (!speechService || !speechVoiceName || !isLiveConnectedRef.current) return;
+          if (!speechService || !isLiveConnectedRef.current) return;
 
-          let next = takeSpeakableChunk(speechBuffer, force);
+          const minBoundaryLength = spokenChunkCount === 0 ? 18 : 50;
+          let next = takeSpeakableChunk(speechBuffer, force, minBoundaryLength);
           while (next.chunk) {
             spokenChunkCount += 1;
             speechService.speak(next.chunk, { interrupt: false, voiceName: speechVoiceName }).catch((error) => {
@@ -285,7 +294,14 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
 
         flushSpeech(true);
 
-        if (speechService && speechVoiceName && isLiveConnectedRef.current && spokenChunkCount === 0 && responseText.trim()) {
+        // When voice is OFF: speak the complete response in one TTS call
+        if (speechService && effectiveVoice && !isLiveConnectedRef.current && responseText.trim()) {
+          speechService.prepareForSpeech().catch(() => undefined);
+          speechService.speak(responseText, { interrupt: true, voiceName: effectiveVoice }).catch((error) => {
+            console.warn('[useInterviewSession] Failed to speak chat response:', error);
+          });
+        // When voice is ON but nothing was chunked yet (edge case): speak full response
+        } else if (isLiveConnectedRef.current && speechService && speechVoiceName && spokenChunkCount === 0 && responseText.trim()) {
           speechService.speak(responseText, { interrupt: false, voiceName: speechVoiceName }).catch((error) => {
             console.warn('[useInterviewSession] Failed to speak final chat response:', error);
           });
