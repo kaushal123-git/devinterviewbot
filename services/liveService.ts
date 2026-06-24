@@ -5,6 +5,7 @@ import {
   GEMINI_LIVE_MODEL,
   GEMINI_TTS_MODEL,
   DEFAULT_VOICE_NAME,
+  FEMALE_VOICE_NAME,
   INPUT_SAMPLE_RATE,
   OUTPUT_SAMPLE_RATE,
   AUDIO_CHUNK_SIZE,
@@ -17,10 +18,12 @@ type LiveSession = Awaited<ReturnType<GoogleGenAI['live']['connect']>>;
 
 export interface LiveConnectOptions {
   onMessage?: (message: { text: string; partial?: boolean }) => void;
+  onInputTranscript?: (message: { text: string; partial?: boolean }) => void;
   onStateChange?: (state: 'connecting' | 'connected' | 'closed' | 'error') => void;
   onWarning?: (message: string) => void;
   systemInstruction?: string;
   initialMessage?: string;
+  voiceName?: string;
   onToolCall?: (functionCall: any) => void;
   onUsageUpdate?: (usage: any) => void;
 }
@@ -56,12 +59,32 @@ export class LiveService {
   private textTurnMuteTimeoutId: number | null = null;
   private speechQueue: Promise<void> = Promise.resolve();
   private speechGeneration: number = 0;
+  private voiceName: string = DEFAULT_VOICE_NAME;
 
   public onVolumeChange: ((volume: number) => void) | null = null;
   public onOutputLevelChange: ((level: number) => void) | null = null;
 
   constructor(apiKey: string) {
     this.ai = new GoogleGenAI({ apiKey });
+  }
+
+  public setVoiceName(voiceName: string) {
+    this.voiceName = voiceName;
+  }
+
+  public getVoiceName() {
+    return this.voiceName;
+  }
+
+  private prepareTextForSpeech(text: string, voiceName: string) {
+    if (voiceName !== FEMALE_VOICE_NAME) return text;
+
+    return text
+      .replace(/\s+/g, ' ')
+      .replace(/([!?]){2,}/g, '$1')
+      .replace(/\s*([,;:])\s*/g, '$1 ')
+      .replace(/([.!?])\s+(?=\S)/g, ', ')
+      .trim();
   }
 
   /** Opens a live session, acquires the microphone, and begins streaming. */
@@ -88,14 +111,17 @@ export class LiveService {
     }
 
     const instructionText = options?.systemInstruction || SYSTEM_INSTRUCTION_INTERVIEWER;
+    const voiceName = options?.voiceName ?? this.voiceName;
 
     try {
       this.session = await this.ai.live.connect({
         model: GEMINI_LIVE_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: DEFAULT_VOICE_NAME } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName } },
           },
           systemInstruction: {
             parts: [{ text: instructionText }]
@@ -420,6 +446,20 @@ export class LiveService {
       this.clearTextTurnMute();
     }
 
+    if (serverContent.outputTranscription?.text && onTextMessage) {
+      onTextMessage({
+        text: serverContent.outputTranscription.text,
+        partial: !serverContent.outputTranscription.finished,
+      });
+    }
+
+    if (serverContent.inputTranscription?.text && options?.onInputTranscript) {
+      options.onInputTranscript({
+        text: serverContent.inputTranscription.text,
+        partial: !serverContent.inputTranscription.finished,
+      });
+    }
+
     if (serverContent.modelTurn?.parts?.[0]?.inlineData) {
       const audioData = serverContent.modelTurn.parts[0].inlineData.data;
       if (audioData) {
@@ -441,7 +481,7 @@ export class LiveService {
         }
       }
     }
-    if (textParts.length > 0 && onTextMessage) {
+    if (textParts.length > 0 && onTextMessage && !serverContent.outputTranscription?.text) {
       const fullText = textParts.join('\n');
       console.log(`[LiveService] Received text part (${serverContent.turnComplete ? 'complete' : 'partial'}):`, fullText);
       onTextMessage({
@@ -453,12 +493,12 @@ export class LiveService {
 
   // --- Audio Playback ---
 
-  private async playAudioChunk(base64Audio: string) {
+  private async playAudioChunk(base64Audio: string): Promise<number> {
     // Ensure output context is ready (also needed for standalone TTS outside live session)
     this.outputAudioContext = await this.ensureSingleContext(this.outputAudioContext, OUTPUT_SAMPLE_RATE);
     this.ensureOutputNodes();
 
-    if (!this.outputAudioContext || !this.outputMixGain) return;
+    if (!this.outputAudioContext || !this.outputMixGain) return 0;
 
     try {
       const bytes = base64ToBytes(base64Audio);
@@ -481,7 +521,8 @@ export class LiveService {
         );
       }
 
-      this.nextStartTime = Math.max(this.outputAudioContext.currentTime, this.nextStartTime);
+      const startTime = Math.max(this.outputAudioContext.currentTime, this.nextStartTime);
+      this.nextStartTime = startTime;
 
       const source = this.outputAudioContext.createBufferSource();
       source.buffer = audioBuffer;
@@ -493,8 +534,10 @@ export class LiveService {
       source.onended = () => {
         this.activeSources.delete(source);
       };
+      return Math.max(0, this.nextStartTime - this.outputAudioContext.currentTime);
     } catch (error) {
       console.error('[LiveService] playAudioChunk error decoding audio:', error);
+      return 0;
     }
   }
 
@@ -513,6 +556,9 @@ export class LiveService {
   public stopSpeech() {
     this.speechGeneration += 1;
     this.speechQueue = Promise.resolve();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     this.stopAudioPlayback();
   }
 
@@ -595,14 +641,14 @@ export class LiveService {
     return this.isManualMicMuted || this.isTextTurnMuted;
   }
 
-  private startTextTurnMute() {
+  private startTextTurnMute(timeoutMs: number = MIC_UNMUTE_TIMEOUT_MS) {
     this.isTextTurnMuted = true;
     if (this.textTurnMuteTimeoutId !== null) {
       window.clearTimeout(this.textTurnMuteTimeoutId);
     }
     this.textTurnMuteTimeoutId = window.setTimeout(() => {
       this.clearTextTurnMute();
-    }, MIC_UNMUTE_TIMEOUT_MS);
+    }, timeoutMs);
   }
 
   private clearTextTurnMute() {
@@ -625,13 +671,17 @@ export class LiveService {
   }
 
   /** Generates speech from text using the Gemini TTS model and plays it. */
-  public async speak(text: string, options: { interrupt?: boolean } = {}) {
+  public async speak(text: string, options: { interrupt?: boolean; voiceName?: string } = {}) {
     const interrupt = options.interrupt ?? true;
+    const voiceName = options.voiceName ?? this.voiceName;
 
     if (interrupt) {
       this.speechGeneration += 1;
       this.speechQueue = Promise.resolve();
       await this.prepareForSpeech();
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       this.stopAudioPlayback();
     }
 
@@ -640,7 +690,8 @@ export class LiveService {
       .catch(() => undefined)
       .then(async () => {
         try {
-          await this.generateAndPlaySpeech(text, generation);
+          this.startTextTurnMute(10000);
+          await this.generateAndPlaySpeech(text, generation, voiceName);
         } catch (error) {
           console.error('[LiveService] speak error generating content:', error);
         }
@@ -650,16 +701,18 @@ export class LiveService {
     await speakTask;
   }
 
-  private async generateAndPlaySpeech(text: string, generation: number) {
+  private async generateAndPlaySpeech(text: string, generation: number, voiceName: string) {
+    try {
       await this.prepareForSpeech();
+      const speechText = this.prepareTextForSpeech(text, voiceName);
       const response = await this.ai.models.generateContent({
         model: GEMINI_TTS_MODEL,
-        contents: [{ parts: [{ text }] }],
+        contents: [{ parts: [{ text: speechText }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: DEFAULT_VOICE_NAME },
+              prebuiltVoiceConfig: { voiceName },
             },
           },
         },
@@ -668,10 +721,59 @@ export class LiveService {
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         if (generation !== this.speechGeneration) return;
-        await this.playAudioChunk(base64Audio);
+        const duration = await this.playAudioChunk(base64Audio);
+        if (duration > 0) {
+          this.startTextTurnMute(Math.ceil(duration * 1000) + 1000);
+        }
       } else {
         console.warn('[LiveService] speak response did not contain base64 audio data. Response candidates:', response.candidates);
+        await this.speakWithBrowserFallback(text, generation, voiceName);
       }
+    } catch (error) {
+      console.error('[LiveService] Gemini TTS failed, using browser speech fallback:', error);
+      await this.speakWithBrowserFallback(text, generation, voiceName);
+    }
+  }
+
+  private async speakWithBrowserFallback(text: string, generation: number, voiceName: string) {
+    if (generation !== this.speechGeneration || !('speechSynthesis' in window)) return;
+
+    await this.prepareForSpeech().catch(() => undefined);
+    this.startTextTurnMute(Math.max(4000, Math.min(20000, text.length * 70)));
+
+    return new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1;
+      utterance.pitch = voiceName === FEMALE_VOICE_NAME ? 1.08 : 0.92;
+
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find((voice) => {
+        const name = voice.name.toLowerCase();
+        return voiceName === FEMALE_VOICE_NAME
+          ? /female|zira|susan|samantha|aria|jenny|hazel|google uk english female/.test(name)
+          : /male|david|mark|guy|daniel|google uk english male/.test(name);
+      });
+      if (preferredVoice) utterance.voice = preferredVoice;
+
+      utterance.onstart = () => {
+        this.smoothedOutputLevel = 0.35;
+        if (this.onOutputLevelChange) this.onOutputLevelChange(this.smoothedOutputLevel);
+      };
+      utterance.onend = () => {
+        this.smoothedOutputLevel = 0;
+        if (this.onOutputLevelChange) this.onOutputLevelChange(0);
+        this.clearTextTurnMute();
+        resolve();
+      };
+      utterance.onerror = () => {
+        this.smoothedOutputLevel = 0;
+        if (this.onOutputLevelChange) this.onOutputLevelChange(0);
+        this.clearTextTurnMute();
+        resolve();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    });
   }
 
   /** Primes output audio so playback can begin immediately when TTS arrives. */

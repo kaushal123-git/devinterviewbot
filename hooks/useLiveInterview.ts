@@ -7,6 +7,8 @@ import {
   SYSTEM_INSTRUCTION_INTERVIEWER,
   CODE_DEBOUNCE_MS,
   VIDEO_FRAME_INTERVAL_MS,
+  DEFAULT_VOICE_NAME,
+  FEMALE_VOICE_NAME,
 } from '@/constants';
 
 interface UseLiveInterviewParams {
@@ -14,11 +16,21 @@ interface UseLiveInterviewParams {
   currentProblem: InterviewProblem;
   language: InterviewLanguage;
   code: string;
+  isFemale: boolean;
   editorRef: React.RefObject<CodeEditorHandle | null>;
   avatarRef: React.RefObject<AvatarInterviewerHandle | null>;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   onUpdateContext?: (language: string, title: string, description: string, starterCode: string) => void;
   onTypeCode?: (code: string) => void;
+}
+
+function appendTranscriptChunk(current: string, chunk: string) {
+  if (!current) return chunk;
+  if (!chunk) return current;
+  if (/\s$/.test(current) || /^\s|^[,.;:!?)]/.test(chunk)) {
+    return current + chunk;
+  }
+  return `${current} ${chunk}`;
 }
 
 /**
@@ -29,6 +41,7 @@ export function useLiveInterview({
   currentProblem,
   language,
   code,
+  isFemale,
   editorRef,
   avatarRef,
   setMessages,
@@ -50,8 +63,11 @@ export function useLiveInterview({
   const frameAlternatorRef = useRef(false);
   const lastSentCodeRef = useRef<string>('');
   const currentModelTurnIdRef = useRef<string | null>(null);
+  const currentUserSpeechTurnIdRef = useRef<string | null>(null);
   const isCameraEnabledRef = useRef(isCameraEnabled);
+  const isLiveConnectedRef = useRef(isLiveConnected);
   const connectWarningRef = useRef<string | null>(null);
+  const isConnectingLiveRef = useRef(false);
   
   const lastUserSpeechTime = useRef<number>(0);
   const lastAISpeechTime = useRef<number>(0);
@@ -62,15 +78,21 @@ export function useLiveInterview({
   useEffect(() => { currentProblemRef.current = currentProblem; }, [currentProblem]);
   useEffect(() => { languageRef.current = language; }, [language]);
   useEffect(() => { isCameraEnabledRef.current = isCameraEnabled; }, [isCameraEnabled]);
+  useEffect(() => { isLiveConnectedRef.current = isLiveConnected; }, [isLiveConnected]);
+
+  useEffect(() => {
+    liveServiceRef.current?.setVoiceName(isFemale ? FEMALE_VOICE_NAME : DEFAULT_VOICE_NAME);
+  }, [isFemale]);
 
   // Initialise LiveService once when apiKey is available
   useEffect(() => {
     if (apiKey && !liveServiceRef.current) {
       liveServiceRef.current = new LiveService(apiKey);
+      liveServiceRef.current.setVoiceName(isFemale ? FEMALE_VOICE_NAME : DEFAULT_VOICE_NAME);
       liveServiceRef.current.onVolumeChange = (vol) => setVolume(vol);
       liveServiceRef.current.onOutputLevelChange = (level) => setSpeechLevel(level);
     }
-  }, [apiKey]);
+  }, [apiKey, isFemale]);
 
   // Cleanup on unmount — disconnect WebSocket and release microphone
   useEffect(() => {
@@ -135,13 +157,21 @@ export function useLiveInterview({
     }
   }, [agentState, isLiveConnected]);
 
+  const noteUserTurnStarted = useCallback(() => {
+    currentModelTurnIdRef.current = null;
+    currentUserSpeechTurnIdRef.current = null;
+    setSubtitles('');
+  }, []);
+
   const handleConnectLive = useCallback(async () => {
-    if (!apiKey || !liveServiceRef.current) return;
+    if (!apiKey || !liveServiceRef.current || isConnectingLiveRef.current || isLiveConnectedRef.current) return;
 
     const problem = currentProblemRef.current;
     const lang = languageRef.current;
+    const voiceName = isFemale ? FEMALE_VOICE_NAME : DEFAULT_VOICE_NAME;
 
     try {
+      isConnectingLiveRef.current = true;
       setIsConnectingLive(true);
       connectWarningRef.current = null;
 
@@ -153,14 +183,17 @@ export function useLiveInterview({
       `;
 
       await liveServiceRef.current.connect({
+        voiceName,
         systemInstruction: sessionInstruction,
         onStateChange: (state) => {
           if (state === 'connected') {
+            isLiveConnectedRef.current = true;
             setIsLiveConnected(true);
             return;
           }
 
           if (state === 'closed' || state === 'error') {
+            isLiveConnectedRef.current = false;
             setIsLiveConnected(false);
             setVolume(0);
             setSpeechLevel(0);
@@ -191,7 +224,7 @@ export function useLiveInterview({
             if (lastMsgIndex >= 0) {
               newMessages[lastMsgIndex] = {
                 ...newMessages[lastMsgIndex],
-                text: newMessages[lastMsgIndex].text + msg.text
+                text: appendTranscriptChunk(newMessages[lastMsgIndex].text, msg.text)
               };
             } else {
               newMessages.push({
@@ -207,6 +240,39 @@ export function useLiveInterview({
           // If turn is complete, reset the turn ID
           if (!msg.partial) {
              currentModelTurnIdRef.current = null;
+          }
+        },
+        onInputTranscript: (msg) => {
+          if (!currentUserSpeechTurnIdRef.current) {
+            currentUserSpeechTurnIdRef.current = `user-speech-${Date.now()}`;
+            currentModelTurnIdRef.current = null;
+          }
+
+          const turnId = currentUserSpeechTurnIdRef.current;
+
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            const lastMsgIndex = newMessages.findIndex(m => m.id === turnId);
+
+            if (lastMsgIndex >= 0) {
+              newMessages[lastMsgIndex] = {
+                ...newMessages[lastMsgIndex],
+                text: appendTranscriptChunk(newMessages[lastMsgIndex].text, msg.text)
+              };
+            } else {
+              newMessages.push({
+                id: turnId,
+                role: 'user',
+                text: msg.text,
+                timestamp: Date.now()
+              });
+            }
+
+            return newMessages;
+          });
+
+          if (!msg.partial) {
+            currentUserSpeechTurnIdRef.current = null;
           }
         },
         onToolCall: (functionCall) => {
@@ -302,9 +368,10 @@ export function useLiveInterview({
         },
       ]);
     } finally {
+      isConnectingLiveRef.current = false;
       setIsConnectingLive(false);
     }
-  }, [apiKey, editorRef, setMessages]);
+  }, [apiKey, avatarRef, isFemale, onTypeCode, onUpdateContext, setMessages]);
 
   const handleDisconnectLive = useCallback(async () => {
     if (liveServiceRef.current) await liveServiceRef.current.disconnect();
@@ -312,9 +379,11 @@ export function useLiveInterview({
       clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = null;
     }
+    isLiveConnectedRef.current = false;
     setIsLiveConnected(false);
     setVolume(0);
     setSpeechLevel(0);
+    setIsMicMuted(false);
   }, []);
 
   const toggleMic = useCallback(() => {
@@ -348,5 +417,6 @@ export function useLiveInterview({
     liveServiceRef,
     handleConnectLive,
     handleDisconnectLive,
+    noteUserTurnStarted,
   } as const;
 }

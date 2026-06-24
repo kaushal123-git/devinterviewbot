@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import CodeEditor, { type CodeEditorHandle } from '@/components/CodeEditor';
 import ChatPanel from '@/components/ChatPanel';
 import LiveControls from '@/components/LiveControls';
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const editorRef = useRef<CodeEditorHandle>(null);
   const avatarRef = useRef<AvatarInterviewerHandle>(null);
   const { theme, toggleTheme } = useTheme();
+  const [isFemale, setIsFemale] = useState(false);
 
   const session = useInterviewSession({ apiKey: API_KEY });
 
@@ -28,6 +29,7 @@ const App: React.FC = () => {
     currentProblem: session.currentProblem,
     language: session.language,
     code: session.code,
+    isFemale,
     editorRef,
     avatarRef,
     setMessages: session.setMessages,
@@ -41,8 +43,8 @@ const App: React.FC = () => {
 
   // Wire live refs into session for message routing (effect, not render-phase)
   useEffect(() => {
-    session.setLiveRefs(live.isLiveConnected, live.liveServiceRef);
-  }, [live.isLiveConnected, live.liveServiceRef, session.setLiveRefs]);
+    session.setLiveRefs(live.isLiveConnected, live.liveServiceRef, live.noteUserTurnStarted);
+  }, [live.isLiveConnected, live.liveServiceRef, live.noteUserTurnStarted, session.setLiveRefs]);
 
   const totalTokens = useMemo(() => ({
     prompt: session.chatTokens.prompt + live.sessionTokens.prompt,
@@ -68,6 +70,8 @@ const App: React.FC = () => {
             isCameraEnabled={live.isCameraEnabled}
             subtitles={live.subtitles}
             agentState={live.agentState}
+            isFemale={isFemale}
+            onAvatarChange={setIsFemale}
           />
           <DescriptionBanner description={session.currentProblem.description} />
           <div className="flex-1 relative">
