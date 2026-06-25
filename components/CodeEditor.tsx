@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import type { InterviewLanguage } from '@/types';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Loader2, Check } from 'lucide-react';
 
 interface CodeEditorProps {
   code: string;
@@ -10,6 +10,7 @@ interface CodeEditorProps {
   theme: 'light' | 'dark';
   onThemeToggle: () => void;
   className?: string;
+  onSubmitCode?: () => void;
 }
 
 export interface CodeEditorHandle {
@@ -23,11 +24,13 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
   onLanguageChange,
   theme,
   onThemeToggle,
-  className 
+  className,
+  onSubmitCode
 }, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [submittingState, setSubmittingState] = useState<'idle' | 'running' | 'success'>('idle');
 
   // Sync scrolling between textarea and line numbers
   const handleScroll = () => {
@@ -77,6 +80,20 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
     }
   }));
 
+  const handleSubmit = () => {
+    if (submittingState !== 'idle') return;
+    setSubmittingState('running');
+    
+    // Simulate test verification
+    setTimeout(() => {
+      if (onSubmitCode) {
+        onSubmitCode();
+      }
+      setSubmittingState('success');
+      setTimeout(() => setSubmittingState('idle'), 2500);
+    }, 1200);
+  };
+
   useEffect(() => {
     if (canvasRef.current) {
         canvasRef.current.width = 800;
@@ -125,10 +142,43 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
       {/* Status Bar & Controls */}
       <div className="h-10 border-t border-subtle bg-app flex items-center justify-between px-6 text-[11px] font-medium text-secondary uppercase select-none transition-colors duration-300 shrink-0">
         
-        {/* Left: Stats */}
+        {/* Left: Stats & Submit */}
         <div className="flex items-center gap-6 tracking-wide">
             <span>UTF-8</span>
             <span>{code.length} chars</span>
+            
+            {onSubmitCode && (
+              <>
+                <div className="w-px h-3 bg-subtle" />
+                <button
+                  onClick={handleSubmit}
+                  disabled={submittingState !== 'idle'}
+                  className={`px-3 py-1 font-semibold text-[10px] tracking-wider rounded transition-all duration-300 flex items-center gap-1.5 active:scale-[0.98] ${
+                    submittingState === 'success'
+                      ? 'bg-emerald-500 text-white'
+                      : submittingState === 'running'
+                        ? 'bg-zinc-800 text-secondary cursor-not-allowed'
+                        : 'bg-primary text-accent-contrast hover:opacity-90'
+                  }`}
+                >
+                  {submittingState === 'running' && (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  )}
+                  {submittingState === 'success' && (
+                    <>
+                      <Check className="w-3 h-3 text-white" />
+                      <span>+20 XP Added!</span>
+                    </>
+                  )}
+                  {submittingState === 'idle' && (
+                    <span>Submit Code</span>
+                  )}
+                </button>
+              </>
+            )}
         </div>
 
         {/* Right: Controls */}

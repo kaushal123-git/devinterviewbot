@@ -1,0 +1,58 @@
+{
+  "shahishreya1993@gmail.com": {
+    "email": "shahishreya1993@gmail.com",
+    "xp": 0,
+    "problemsSolved": 0,
+    "mockInterviews": 0,
+    "successRate": 0,
+    "languages": {
+      "python": 0,
+      "typescript": 0,
+      "c": 0,
+      "cpp": 0,
+      "java": 0
+    },
+    "activities": [
+      {
+        "id": "welcome-1782422050369",
+        "type": "achievement",
+        "title": "Account Activated",
+        "detail": "Created new profile on DevInterview.AI",
+        "timestamp": 1782422050369
+      }
+    ],
+    "savedCode": {
+      "two-sum": {
+        "python": "# Two Sum\n# Given an array of integers nums and an integer target,\n# return indices of the two numbers such that they add up to target.\n\ndef twoSum(nums: List[int], target: int) -> List[int]:\n    # Your code here\n    return []"
+      }
+    }
+  },
+  "kd7158856@gmail.com": {
+    "email": "kd7158856@gmail.com",
+    "xp": 0,
+    "problemsSolved": 0,
+    "mockInterviews": 0,
+    "successRate": 0,
+    "languages": {
+      "python": 0,
+      "typescript": 0,
+      "c": 0,
+      "cpp": 0,
+      "java": 0
+    },
+    "activities": [
+      {
+        "id": "welcome-1782422209568",
+        "type": "achievement",
+        "title": "Account Activated",
+        "detail": "Created new profile on DevInterview.AI",
+        "timestamp": 1782422209568
+      }
+    ],
+    "savedCode": {
+      "two-sum": {
+        "python": "# Two Sum\n# Given an array of integers nums and an integer target,\n# return indices of the two numbers such that they add up to target.\n\ndef twoSum(nums: List[int], target: int) -> List[int]:\n    # Your code here\n    return []"
+      }
+    }
+  }
+}
