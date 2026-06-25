@@ -53,13 +53,14 @@ export class LiveService {
   private smoothedOutputLevel: number = 0;
   private nextStartTime: number = 0;
   private activeSources: Set<AudioBufferSourceNode> = new Set();
-  private isConnected: boolean = false;
+  public isConnected: boolean = false;
   private isManualMicMuted: boolean = false;
   private isTextTurnMuted: boolean = false;
   private textTurnMuteTimeoutId: number | null = null;
   private speechQueue: Promise<void> = Promise.resolve();
   private speechGeneration: number = 0;
   private voiceName: string = DEFAULT_VOICE_NAME;
+  private connectOptions: LiveConnectOptions | null = null;
 
   public onVolumeChange: ((volume: number) => void) | null = null;
   public onOutputLevelChange: ((level: number) => void) | null = null;
@@ -77,9 +78,8 @@ export class LiveService {
   }
 
   private prepareTextForSpeech(text: string, voiceName: string) {
-    if (voiceName !== FEMALE_VOICE_NAME) return text;
-
     return text
+      .replace(/\n+/g, ' ')
       .replace(/\s+/g, ' ')
       .replace(/([!?]){2,}/g, '$1')
       .replace(/\s*([,;:])\s*/g, '$1 ')
@@ -88,23 +88,31 @@ export class LiveService {
   }
 
   /** Opens a live session, acquires the microphone, and begins streaming. */
-  public async connect(options?: LiveConnectOptions): Promise<void> {
+  public async connect(options?: LiveConnectOptions & { muted?: boolean }): Promise<void> {
     if (this.isConnected) return;
+    if (options) {
+      this.connectOptions = options;
+    }
     options?.onStateChange?.('connecting');
 
+    const shouldRequestMic = !(options?.muted ?? false);
     let stream: MediaStream | null = this.inputStream;
-    const isStreamActive = stream && stream.getTracks().some(track => track.readyState === 'live');
 
-    try {
-      if (!isStreamActive) {
-        stream = await this.requestMicrophone();
-        this.inputStream = stream;
+    if (shouldRequestMic) {
+      const isStreamActive = stream && stream.getTracks().some(track => track.readyState === 'live');
+      try {
+        if (!isStreamActive) {
+          stream = await this.requestMicrophone();
+          this.inputStream = stream;
+        }
+        this.inputAudioContext = await this.ensureSingleContext(this.inputAudioContext, INPUT_SAMPLE_RATE);
+      } catch (error) {
+        const message = this.describeMicrophoneError(error);
+        console.warn('[LiveService] Microphone unavailable, connecting without mic:', error);
+        options?.onWarning?.(message);
       }
-      this.inputAudioContext = await this.ensureSingleContext(this.inputAudioContext, INPUT_SAMPLE_RATE);
-    } catch (error) {
-      const message = this.describeMicrophoneError(error);
-      console.warn('[LiveService] Microphone unavailable, connecting without mic:', error);
-      options?.onWarning?.(message);
+    } else {
+      this.isManualMicMuted = true;
     }
 
     try {
@@ -601,6 +609,11 @@ export class LiveService {
    * Sends a text turn to the live session.
    */
   public async sendText(text: string, options: { temporaryMuteMic?: boolean } = {}) {
+    if (!this.isConnected) {
+      console.log('[LiveService] Reconnecting WebSocket in background for text turn...');
+      await this.connect({ ...this.connectOptions, muted: true });
+    }
+
     if (!this.session || !this.isConnected) return;
 
     try {
@@ -695,19 +708,33 @@ export class LiveService {
     }
 
     const generation = this.speechGeneration;
-    const speakTask = this.speechQueue
+    
+    // Clean text: remove code blocks, markdown symbols, and emojis so fallback voices do not read them
+    const cleanedText = text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*+/g, '')
+      .replace(/\p{Emoji_Presentation}/gu, '')
+      .replace(/[#_~[\]()]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleanedText) return;
+
+    // Queue the entire cleaned text sequentially
+    this.speechQueue = this.speechQueue
       .catch(() => undefined)
       .then(async () => {
+        if (generation !== this.speechGeneration) return;
         try {
           this.startTextTurnMute(10000);
-          await this.generateAndPlaySpeech(text, generation, voiceName);
+          await this.generateAndPlaySpeech(cleanedText, generation, voiceName);
         } catch (error) {
           console.error('[LiveService] speak error generating content:', error);
         }
       });
 
-    this.speechQueue = speakTask;
-    await speakTask;
+    await this.speechQueue;
   }
 
   private async generateAndPlaySpeech(text: string, generation: number, voiceName: string) {
@@ -756,12 +783,21 @@ export class LiveService {
       utterance.pitch = voiceName === FEMALE_VOICE_NAME ? 1.08 : 0.92;
 
       const voices = window.speechSynthesis.getVoices();
+      
+      // Prioritize natural/online voices which sound much less robotic
       const preferredVoice = voices.find((voice) => {
+        const name = voice.name.toLowerCase();
+        const isMatch = voiceName === FEMALE_VOICE_NAME
+          ? /female|zira|susan|samantha|aria|jenny|hazel|google uk english female/.test(name)
+          : /male|david|mark|guy|daniel|google uk english male/.test(name);
+        return isMatch && (name.includes('natural') || name.includes('google') || name.includes('online') || name.includes('premium'));
+      }) || voices.find((voice) => {
         const name = voice.name.toLowerCase();
         return voiceName === FEMALE_VOICE_NAME
           ? /female|zira|susan|samantha|aria|jenny|hazel|google uk english female/.test(name)
           : /male|david|mark|guy|daniel|google uk english male/.test(name);
       });
+
       if (preferredVoice) utterance.voice = preferredVoice;
 
       utterance.onstart = () => {

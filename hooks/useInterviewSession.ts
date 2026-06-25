@@ -201,8 +201,10 @@ export function useInterviewSession({ apiKey }: UseInterviewSessionParams) {
       setMessages(prev => [...prev, newUserMsg]);
 
       const liveSpeechService = liveServiceExtRef.current?.current ?? null;
-      if (isLiveConnectedRef.current && liveSpeechService) {
+      if (liveSpeechService && liveSpeechService.isConnected) {
         liveUserTurnStartedRef.current?.();
+        liveSpeechService.sendText(text);
+        return;
       }
 
       // Build history of prior turns (excluding the active user message)

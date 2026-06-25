@@ -4,7 +4,7 @@ import { InterviewProblem } from '@/types';
 export const GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
 export const GEMINI_CHAT_MODEL = 'gemini-2.5-flash';
 export const GEMINI_THINKING_MODEL = 'gemini-2.5-pro';
-export const GEMINI_TTS_MODEL = 'gemini-3.1-flash-tts-preview';
+export const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 
 // --- Audio Configuration ---
 export const INPUT_SAMPLE_RATE = 16000;

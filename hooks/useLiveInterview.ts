@@ -161,8 +161,22 @@ export function useLiveInterview({
     setSubtitles('');
   }, []);
 
-  const handleConnectLive = useCallback(async () => {
-    if (!apiKey || !liveServiceRef.current || isConnectingLiveRef.current || isLiveConnectedRef.current) return;
+  const handleConnectLive = useCallback(async (options?: { muted?: boolean }) => {
+    if (!apiKey || !liveServiceRef.current || isConnectingLiveRef.current) return;
+
+    const isMuted = options?.muted ?? false;
+
+    // If already connected, just unmute the mic and update UI state
+    if (liveServiceRef.current.isConnected) {
+      if (!isMuted) {
+        await liveServiceRef.current.setMicMuted(false);
+        isLiveConnectedRef.current = true;
+        setIsLiveConnected(true);
+      }
+      return;
+    }
+
+    if (isLiveConnectedRef.current) return;
 
     const problem = currentProblemRef.current;
     const lang = languageRef.current;
@@ -183,10 +197,13 @@ export function useLiveInterview({
       await liveServiceRef.current.connect({
         voiceName,
         systemInstruction: sessionInstruction,
+        muted: isMuted,
         onStateChange: (state) => {
           if (state === 'connected') {
-            isLiveConnectedRef.current = true;
-            setIsLiveConnected(true);
+            if (!isMuted) {
+              isLiveConnectedRef.current = true;
+              setIsLiveConnected(true);
+            }
             return;
           }
 
@@ -374,7 +391,9 @@ export function useLiveInterview({
   }, [apiKey, avatarRef, onTypeCode, onUpdateContext, setMessages]);
 
   const handleDisconnectLive = useCallback(async (options?: { keepAudioContexts?: boolean }) => {
-    if (liveServiceRef.current) await liveServiceRef.current.disconnect(options);
+    if (liveServiceRef.current) {
+      await liveServiceRef.current.setMicMuted(true);
+    }
     if (videoIntervalRef.current) {
       clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = null;
@@ -385,6 +404,15 @@ export function useLiveInterview({
     setSpeechLevel(0);
     setIsMicMuted(false);
   }, []);
+
+  // Autoconnect on load in background (muted)
+  useEffect(() => {
+    if (apiKey && liveServiceRef.current && !isLiveConnectedRef.current && !isConnectingLiveRef.current) {
+      handleConnectLive({ muted: true }).catch((err) => {
+        console.error('[Live] Background auto-connect failed:', err);
+      });
+    }
+  }, [apiKey, handleConnectLive]);
 
   const toggleMic = useCallback(() => {
     if (liveServiceRef.current) {
@@ -403,19 +431,20 @@ export function useLiveInterview({
   }, []);
 
   // Gemini Live applies its voice when a session is created. If the user
-  // changes interviewer avatars during a live interview, quietly recreate
-  // only the voice connection so the visible avatar and spoken voice match.
+  // changes interviewer avatars, quietly recreate the voice connection
+  // so the visible avatar and spoken voice match.
   useEffect(() => {
     const nextVoiceName = isFemale ? FEMALE_VOICE_NAME : MALE_VOICE_NAME;
     const voiceChanged = selectedVoiceRef.current !== nextVoiceName;
     selectedVoiceRef.current = nextVoiceName;
     liveServiceRef.current?.setVoiceName(nextVoiceName);
 
-    if (!voiceChanged || !isLiveConnectedRef.current || isConnectingLiveRef.current) return;
+    if (!voiceChanged || isConnectingLiveRef.current || !liveServiceRef.current?.isConnected) return;
 
     let cancelled = false;
 
     const switchLiveVoice = async () => {
+      const wasVoiceActive = isLiveConnectedRef.current;
       const wasMicMuted = liveServiceRef.current?.isMicMuted ?? false;
       isSwitchingVoiceRef.current = true;
       currentModelTurnIdRef.current = null;
@@ -423,14 +452,18 @@ export function useLiveInterview({
       setSubtitles('');
 
       try {
-        await handleDisconnectLive({ keepAudioContexts: true });
+        if (liveServiceRef.current) {
+          await liveServiceRef.current.disconnect({ keepAudioContexts: true });
+        }
         if (cancelled) return;
 
-        await handleConnectLive();
-        if (cancelled || !wasMicMuted || !liveServiceRef.current) return;
+        await handleConnectLive({ muted: !wasVoiceActive });
+        if (cancelled || !liveServiceRef.current) return;
 
-        await liveServiceRef.current.setMicMuted(true);
-        setIsMicMuted(true);
+        if (wasVoiceActive && wasMicMuted) {
+          await liveServiceRef.current.setMicMuted(true);
+          setIsMicMuted(true);
+        }
       } catch (error) {
         console.error('[Live] Failed to switch interviewer voice:', error);
       } finally {
@@ -442,7 +475,7 @@ export function useLiveInterview({
     return () => {
       cancelled = true;
     };
-  }, [isFemale, handleConnectLive, handleDisconnectLive]);
+  }, [isFemale, handleConnectLive]);
 
   return {
     isLiveConnected,
