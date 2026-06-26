@@ -141,61 +141,42 @@ export default function DashboardView({
   const capitalizedUser = username.charAt(0).toUpperCase() + username.slice(1);
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-8 py-8 bg-gradient-to-tr from-[#ECEEFA] via-[#F4F5FC] to-[#FBF8FD] text-[#1E1B4B] transition-colors duration-300 relative">
+    <div className="flex-1 w-full overflow-y-auto px-6 py-8 bg-gradient-to-br from-[#D2D6F7] via-[#E2F1F8] to-[#E3F6EC] text-[#1E1B4B] transition-colors duration-300 relative flex flex-col items-center select-none">
       
-      {/* Glowing blurred blobs in page background for depth and premium mockup aesthetic */}
-      <div className="absolute top-[5%] left-[-8%] w-[400px] h-[400px] bg-gradient-to-br from-[#818CF8]/25 to-[#C084FC]/15 rounded-full blur-[110px] pointer-events-none z-0 animate-pulse duration-[8000ms]" />
-      <div className="absolute top-[35%] right-[-8%] w-[450px] h-[450px] bg-gradient-to-tr from-[#F472B6]/20 to-[#38BDF8]/15 rounded-full blur-[130px] pointer-events-none z-0" />
-      <div className="absolute bottom-[10%] left-[15%] w-[380px] h-[380px] bg-gradient-to-br from-[#60A5FA]/15 to-[#34D399]/10 rounded-full blur-[100px] pointer-events-none z-0" />
+      {/* Background Glowing Blobs matching the mockup */}
+      <div className="absolute top-[8%] left-[12%] w-[480px] h-[480px] bg-gradient-to-tr from-[#8A95F6]/40 to-[#6366F1]/30 rounded-full blur-[100px] pointer-events-none z-0" />
+      <div className="absolute top-[25%] right-[8%] w-[500px] h-[500px] bg-gradient-to-tr from-[#C084FC]/35 to-[#818CF8]/25 rounded-full blur-[120px] pointer-events-none z-0" />
+      <div className="absolute bottom-[20%] left-[8%] w-[420px] h-[420px] bg-gradient-to-tr from-[#FED7AA]/30 to-[#FDBA74]/20 rounded-full blur-[100px] pointer-events-none z-0" />
+      <div className="absolute bottom-[8%] right-[12%] w-[480px] h-[480px] bg-gradient-to-tr from-[#A7F3D0]/35 to-[#6EE7B7]/25 rounded-full blur-[100px] pointer-events-none z-0" />
       
-      {/* Background wave design overlays matching mockup */}
-      <div className="absolute bottom-0 left-0 right-0 h-[450px] overflow-hidden pointer-events-none z-0">
-        <svg className="absolute bottom-0 w-full h-full text-indigo-300/10" viewBox="0 0 1440 320" fill="currentColor" preserveAspectRatio="none">
-          <path d="M0,192L80,181.3C160,171,320,149,480,165.3C640,181,800,235,960,240C1120,245,1280,203,1360,181.3L1440,160L1440,320L1360,320C1280,320,1120,320,960,320C800,320,640,320,480,320C320,320,160,320,80,320L0,320Z"></path>
-        </svg>
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 h-[320px] overflow-hidden pointer-events-none z-0">
-        <svg className="absolute bottom-0 w-full h-full text-violet-300/10" viewBox="0 0 1440 320" fill="currentColor" preserveAspectRatio="none">
-          <path d="M0,96L120,112C240,128,480,160,720,176C960,192,1200,192,1320,192L1440,192L1440,320L1320,320C1200,320,960,320,720,320C480,320,240,320,120,320L0,320Z"></path>
-        </svg>
-      </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        .glass-card-premium {
-          background: rgba(255, 255, 255, 0.45);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.65);
-        }
-      `}} />
-
-      <div className="max-w-6xl mx-auto flex flex-col gap-8 relative z-10">
+      {/* Frosted Glass Panel Container wrapping the dashboard matching the mockup */}
+      <div className="w-full max-w-6xl rounded-[36px] bg-white/40 backdrop-blur-[24px] border border-white/60 shadow-[0_24px_60px_rgba(99,102,241,0.05)] p-8 lg:p-10 flex flex-col gap-8 relative z-10">
         
         {/* Banner Section - Matches Mockup perfectly */}
-        <section className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-white/70 via-white/50 to-white/20 border border-white/80 p-10 lg:p-12 flex flex-col md:flex-row justify-start items-start md:items-center min-h-[260px] shadow-[0_20px_50px_rgba(99,102,241,0.06)] gap-12 lg:gap-24 backdrop-blur-xl">
+        <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-white/70 via-white/50 to-white/20 border border-white/80 p-8 lg:p-10 flex flex-col md:flex-row justify-start items-start md:items-center min-h-[220px] shadow-[0_12px_40px_rgba(99,102,241,0.04)] gap-10 lg:gap-20 backdrop-blur-xl">
           
           {/* Accent blobs in the banner card */}
-          <div className="absolute top-[-30%] right-[-5%] w-[260px] h-[260px] bg-gradient-to-tr from-[#6366F1] to-[#D946EF] rounded-full blur-3xl opacity-20 pointer-events-none" />
-          <div className="absolute bottom-[-30%] left-[5%] w-[220px] h-[220px] bg-gradient-to-tr from-[#F472B6] to-[#F59E0B] rounded-full blur-3xl opacity-15 pointer-events-none" />
+          <div className="absolute top-[-30%] right-[-5%] w-[260px] h-[260px] bg-gradient-to-tr from-[#6366F1] to-[#D946EF] rounded-full blur-3xl opacity-15 pointer-events-none" />
+          <div className="absolute bottom-[-30%] left-[5%] w-[220px] h-[220px] bg-gradient-to-tr from-[#F472B6] to-[#F59E0B] rounded-full blur-3xl opacity-10 pointer-events-none" />
 
-          <div className="max-w-2xl flex flex-col gap-3 text-left z-10 flex-1">
+          <div className="max-w-xl flex flex-col gap-2.5 text-left z-10 flex-1">
             {/* User Greeting Tag */}
-            <div className="flex items-center gap-1.5 text-indigo-600 bg-indigo-50/80 border border-indigo-100/50 px-3.5 py-1.5 rounded-full w-fit text-xs font-bold shadow-sm select-none mb-2 animate-bounce duration-1000">
+            <div className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/90 border border-indigo-100/60 px-3.5 py-1.5 rounded-full w-fit text-xs font-bold shadow-sm select-none mb-1 animate-pulse duration-1000">
               <span>Welcome back, {capitalizedUser}!</span>
               <span>👋</span>
             </div>
 
-            <h1 className="text-4xl lg:text-5xl font-black text-[#1E1B4B] leading-tight font-sans tracking-tight">
+            <h1 className="text-3xl lg:text-4xl font-black text-[#1E1B4B] leading-tight font-sans tracking-tight">
               Crack Interviews.<br />Build Your Future.
             </h1>
             
-            <p className="text-xs text-[#1E1B4B]/60 leading-relaxed max-w-md mt-2 font-medium">
+            <p className="text-xs text-[#1E1B4B]/60 leading-relaxed max-w-md mt-1 font-semibold">
               AI-powered practice to help you master DSA, System Design, and real-world coding interviews.
             </p>
             
             <button
               onClick={() => onNavigateToPractice()}
-              className="mt-6 px-7 py-3.5 bg-gradient-to-r from-[#6366F1] to-[#4F46E5] text-white rounded-2xl text-xs font-bold hover:opacity-95 active:scale-[0.98] transition-all flex items-center gap-3 shadow-lg shadow-indigo-500/25 w-fit group"
+              className="mt-4 px-6.5 py-3.5 bg-[#1E1B4B] text-white rounded-2xl text-xs font-black hover:opacity-90 active:scale-[0.98] transition-all flex items-center gap-2.5 shadow-md w-fit group"
             >
               <span>Start Practicing</span>
               <span className="text-white/40">|</span>
@@ -204,64 +185,64 @@ export default function DashboardView({
           </div>
 
           {/* Interactive 3D Model on the right */}
-          <div className="w-full md:w-[320px] h-[240px] shrink-0 z-10 flex items-center justify-center relative">
-            <div className="absolute w-[280px] h-[280px] bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="w-full md:w-[300px] h-[220px] shrink-0 z-10 flex items-center justify-center relative">
+            <div className="absolute w-[240px] h-[240px] bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
             <Robot3D />
           </div>
         </section>
 
-        {/* Stats Grid - Glassmorphism, glows & gradients */}
+        {/* Stats Grid - Soft tinted glassmorphic card backgrounds matching the mockup */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          {/* Card 1: Problems Solved */}
-          <div className="glass-card-premium rounded-[28px] p-6 flex items-center gap-5 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(99,102,241,0.12)] hover:border-indigo-300/60 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute right-[-20px] bottom-[-20px] w-24 h-24 bg-indigo-400/8 rounded-full blur-xl pointer-events-none group-hover:bg-indigo-400/12 transition-all" />
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
-              <span className="font-mono text-sm font-bold">&lt;/&gt;</span>
+          {/* Card 1: Problems Solved (Soft lavender/purple tint) */}
+          <div className="bg-[#EBEAFB]/55 border border-[#D8D4F5]/70 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(99,102,241,0.1)] hover:border-indigo-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
+            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-indigo-900/40 opacity-40" />
+            <div className="w-12 h-12 rounded-2xl bg-white border border-indigo-200/50 text-[#3C3B6E] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+              <span className="font-mono text-sm font-black">&lt;/&gt;</span>
             </div>
             <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-indigo-950 font-mono leading-none">{animatedSolved}</span>
-              <span className="text-xs text-indigo-950/50 font-bold mt-1.5 uppercase tracking-wide">Problems Solved</span>
-              <span className="text-[10px] text-indigo-600 font-extrabold mt-1">↑ +{stats.problemsSolved} this week</span>
+              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedSolved}</span>
+              <span className="text-[11px] text-[#3C3B6E]/70 font-extrabold mt-2 uppercase tracking-wider">Problems Solved</span>
+              <span className="text-[10px] text-indigo-600 font-extrabold mt-0.5">↑ +{stats.problemsSolved} this week</span>
             </div>
           </div>
 
-          {/* Card 2: Mock Interviews */}
-          <div className="glass-card-premium rounded-[28px] p-6 flex items-center gap-5 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(16,185,129,0.12)] hover:border-emerald-300/60 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute right-[-20px] bottom-[-20px] w-24 h-24 bg-emerald-400/8 rounded-full blur-xl pointer-events-none group-hover:bg-emerald-400/12 transition-all" />
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-              <Calendar className="w-5 h-5 text-white" />
+          {/* Card 2: Mock Interviews (Soft green/emerald tint) */}
+          <div className="bg-[#EAF7EC]/55 border border-[#D4EED8]/70 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(16,185,129,0.1)] hover:border-emerald-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
+            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-emerald-900/40 opacity-40" />
+            <div className="w-12 h-12 rounded-2xl bg-white border border-emerald-200/50 text-[#2E5E3D] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+              <Calendar className="w-5 h-5" />
             </div>
             <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-emerald-950 font-mono leading-none">{animatedInterviews}</span>
-              <span className="text-xs text-emerald-950/50 font-bold mt-1.5 uppercase tracking-wide">Mock Interviews</span>
-              <span className="text-[10px] text-emerald-600 font-extrabold mt-1">↑ +{stats.mockInterviews} this week</span>
+              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedInterviews}</span>
+              <span className="text-[11px] text-[#2E5E3D]/70 font-extrabold mt-2 uppercase tracking-wider">Mock Interviews</span>
+              <span className="text-[10px] text-emerald-600 font-extrabold mt-0.5">↑ +{stats.mockInterviews} this week</span>
             </div>
           </div>
 
-          {/* Card 3: Success Rate */}
-          <div className="glass-card-premium rounded-[28px] p-6 flex items-center gap-5 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(245,158,11,0.12)] hover:border-amber-300/60 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute right-[-20px] bottom-[-20px] w-24 h-24 bg-amber-400/8 rounded-full blur-xl pointer-events-none group-hover:bg-amber-400/12 transition-all" />
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
-              <Trophy className="w-5 h-5 text-white" />
+          {/* Card 3: Success Rate (Soft orange/peach tint) */}
+          <div className="bg-[#FDF3E7]/55 border border-[#F7E1C5]/75 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(245,158,11,0.1)] hover:border-amber-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
+            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-amber-900/40 opacity-40" />
+            <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200/50 text-[#6B4B1B] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+              <Trophy className="w-5 h-5" />
             </div>
             <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-amber-950 font-mono leading-none">{animatedSuccess}%</span>
-              <span className="text-xs text-amber-950/50 font-bold mt-1.5 uppercase tracking-wide">Success Rate</span>
-              <span className="text-[10px] text-amber-600 font-extrabold mt-1">↑ +{stats.successRate}% this week</span>
+              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedSuccess}%</span>
+              <span className="text-[11px] text-[#6B4B1B]/70 font-extrabold mt-2 uppercase tracking-wider">Success Rate</span>
+              <span className="text-[10px] text-amber-600 font-extrabold mt-0.5">↑ +{stats.successRate}% this week</span>
             </div>
           </div>
 
-          {/* Card 4: XP Earned */}
-          <div className="glass-card-premium rounded-[28px] p-6 flex items-center gap-5 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(59,130,246,0.12)] hover:border-blue-300/60 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute right-[-20px] bottom-[-20px] w-24 h-24 bg-blue-400/8 rounded-full blur-xl pointer-events-none group-hover:bg-blue-400/12 transition-all" />
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
-              <BarChart2 className="w-5 h-5 text-white" />
+          {/* Card 4: XP Earned (Soft blue/cyan tint) */}
+          <div className="bg-[#EAF3FA]/55 border border-[#D0E5F5]/70 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(59,130,246,0.1)] hover:border-blue-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
+            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-blue-900/40 opacity-40" />
+            <div className="w-12 h-12 rounded-2xl bg-white border border-blue-200/50 text-[#214660] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+              <BarChart2 className="w-5 h-5" />
             </div>
             <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-blue-950 font-mono leading-none">{animatedXP}</span>
-              <span className="text-xs text-blue-950/50 font-bold mt-1.5 uppercase tracking-wide">XP Earned</span>
-              <span className="text-[10px] text-blue-600 font-extrabold mt-1">↑ +{stats.xp} this week</span>
+              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedXP}</span>
+              <span className="text-[11px] text-[#214660]/70 font-extrabold mt-2 uppercase tracking-wider">XP Earned</span>
+              <span className="text-[10px] text-blue-600 font-extrabold mt-0.5">↑ +{stats.xp} this week</span>
             </div>
           </div>
 
@@ -271,8 +252,8 @@ export default function DashboardView({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Practice by Language card */}
-          <section className="lg:col-span-2 rounded-[28px] bg-white/70 border border-white/90 p-6 flex flex-col gap-6 shadow-[0_12px_40px_rgba(0,0,0,0.02)] backdrop-blur-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-indigo-100/50">
+          <section className="lg:col-span-2 rounded-[28px] bg-white/60 border border-white/70 p-6 flex flex-col gap-6 shadow-[0_12px_40px_rgba(0,0,0,0.015)] backdrop-blur-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1E1B4B]/10">
               <h3 className="text-sm font-black text-[#1E1B4B] tracking-wide flex items-center gap-2">
                 <span className="w-1.5 h-3.5 bg-[#6366F1] rounded-full" />
                 <span>Practice by Language</span>
@@ -282,11 +263,11 @@ export default function DashboardView({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
-                { name: 'Python', icon: PythonIcon, count: stats.languages?.python || 0, color: 'from-[#3776AB] to-[#FFD43B]', shadowColor: 'hover:shadow-[#3776AB]/20', borderColor: 'hover:border-[#3776AB]/30' },
-                { name: 'TypeScript', icon: TypeScriptIcon, count: stats.languages?.typescript || 0, color: 'from-[#3178C6] to-[#00599C]', shadowColor: 'hover:shadow-[#3178C6]/20', borderColor: 'hover:border-[#3178C6]/30' },
-                { name: 'C++', icon: CppIcon, count: stats.languages?.cpp || 0, color: 'from-[#00599C] to-[#0080FF]', shadowColor: 'hover:shadow-[#00599C]/20', borderColor: 'hover:border-[#00599C]/30' },
-                { name: 'Java', icon: JavaIcon, count: stats.languages?.java || 0, color: 'from-[#EA2D2E] to-[#F89820]', shadowColor: 'hover:shadow-[#EA2D2E]/20', borderColor: 'hover:border-[#EA2D2E]/30' },
-                { name: 'C', icon: CIcon, count: stats.languages?.c || 0, color: 'from-[#00599C] to-[#5B83AD]', shadowColor: 'hover:shadow-[#00599C]/15', borderColor: 'hover:border-[#00599C]/20' }
+                { name: 'Python', icon: PythonIcon, count: stats.languages?.python || 0, color: 'from-[#3776AB] to-[#FFD43B]', shadowColor: 'hover:shadow-[#3776AB]/15', borderColor: 'hover:border-[#3776AB]/30', tint: 'bg-[#FDFBE7]/55 border-[#F7F2C5]/70 text-[#5F5B2F]' },
+                { name: 'TypeScript', icon: TypeScriptIcon, count: stats.languages?.typescript || 0, color: 'from-[#3178C6] to-[#00599C]', shadowColor: 'hover:shadow-[#3178C6]/15', borderColor: 'hover:border-[#3178C6]/30', tint: 'bg-[#EAF3FA]/55 border-[#D0E5F5]/70 text-[#214660]' },
+                { name: 'C++', icon: CppIcon, count: stats.languages?.cpp || 0, color: 'from-[#00599C] to-[#0080FF]', shadowColor: 'hover:shadow-[#00599C]/15', borderColor: 'hover:border-[#00599C]/30', tint: 'bg-[#E9EDF5]/55 border-[#CBD6EA]/70 text-[#2C3C58]' },
+                { name: 'Java', icon: JavaIcon, count: stats.languages?.java || 0, color: 'from-[#EA2D2E] to-[#F89820]', shadowColor: 'hover:shadow-[#EA2D2E]/15', borderColor: 'hover:border-[#EA2D2E]/30', tint: 'bg-[#FAF1F1]/55 border-[#F5D8D8]/70 text-[#5F2F2F]' },
+                { name: 'C', icon: CIcon, count: stats.languages?.c || 0, color: 'from-[#00599C] to-[#5B83AD]', shadowColor: 'hover:shadow-[#00599C]/10', borderColor: 'hover:border-[#00599C]/20', tint: 'bg-[#EAF7F3]/55 border-[#D0EDE3]/70 text-[#2E5A4D]' }
               ].map((lang, idx) => {
                 const IconComponent = lang.icon;
                 const progressWidth = Math.max(8, Math.min(100, (lang.count / totalSystemProblems) * 100));
@@ -294,15 +275,16 @@ export default function DashboardView({
                   <button 
                     key={idx} 
                     onClick={() => onNavigateToPractice(lang.name.toLowerCase())}
-                    className={`bg-white/80 border border-white/95 shadow-[0_4px_20px_rgba(0,0,0,0.01)] hover:shadow-lg ${lang.shadowColor} ${lang.borderColor} hover:scale-[1.05] hover:-translate-y-1 transition-all duration-300 rounded-[24px] p-5 flex flex-col items-center justify-center text-center gap-3.5 w-full group cursor-pointer`}
+                    className={`${lang.tint} shadow-[0_4px_15px_rgba(0,0,0,0.01)] hover:shadow-lg ${lang.shadowColor} ${lang.borderColor} hover:scale-[1.04] hover:-translate-y-1 transition-all duration-300 rounded-[24px] p-5 flex flex-col items-center justify-center text-center gap-3.5 w-full group cursor-pointer relative overflow-hidden`}
                   >
-                    <div className="group-hover:scale-110 transition-transform duration-300">
+                    <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full border border-current opacity-30" />
+                    <div className="group-hover:scale-110 transition-transform duration-300 bg-white/70 p-2.5 rounded-xl border border-white/50 shadow-sm">
                       <IconComponent />
                     </div>
                     <span className="text-xs font-black text-[#1E1B4B]">{lang.name}</span>
                     <span className="text-[11px] font-bold text-[#1E1B4B]/40 font-mono">{lang.count} / {totalSystemProblems}</span>
                     
-                    <div className="w-full h-1.5 bg-zinc-100 rounded-full mt-1 overflow-hidden">
+                    <div className="w-full h-1.5 bg-white/50 border border-white/40 rounded-full mt-1 overflow-hidden">
                       <div 
                         className={`h-full rounded-full transition-all duration-1000 bg-gradient-to-r ${lang.color}`} 
                         style={{ width: `${progressWidth}%` }}
@@ -315,8 +297,8 @@ export default function DashboardView({
           </section>
 
           {/* Recent Activity card - Glassmorphism timeline + Floating Code Window Deco */}
-          <section className="rounded-[28px] glass-card-premium p-6 flex flex-col gap-4 shadow-[0_12px_40px_rgba(0,0,0,0.02)] text-left relative overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b border-indigo-100/50">
+          <section className="rounded-[28px] bg-white/60 border border-white/70 p-6 flex flex-col gap-4 shadow-[0_12px_40px_rgba(0,0,0,0.015)] text-left relative overflow-hidden backdrop-blur-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1E1B4B]/10">
               <h3 className="text-sm font-black text-[#1E1B4B] tracking-wide flex items-center gap-2">
                 <span className="w-1.5 h-3.5 bg-[#D946EF] rounded-full" />
                 <span>Recent Activity</span>
@@ -345,7 +327,7 @@ export default function DashboardView({
                     </svg>
                   </div>
                   <span className="text-xs text-[#1E1B4B]/60 font-bold">No logs available</span>
-                  <span className="text-[10px] text-zinc-400 mt-1 max-w-[200px] text-center font-medium leading-relaxed">
+                  <span className="text-[10px] text-zinc-400 mt-1 max-w-[200px] text-center font-bold leading-relaxed">
                     Submit code in the Practice editor to record accomplishments!
                   </span>
                 </div>
