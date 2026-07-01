@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Award, Code, Play, CheckCircle2, Calendar, Target, BarChart2, Trophy } from 'lucide-react';
 import Robot3D from './Robot3D';
+import ThreeDTiltCard from './ThreeDTiltCard';
+import LanguageProgress3D from './LanguageProgress3D';
+import InteractiveCodeMatrix2D from './InteractiveCodeMatrix2D';
 
 interface Activity {
   id: string;
@@ -153,225 +156,245 @@ export default function DashboardView({
   return (
     <div className="flex-1 w-full overflow-y-auto px-6 py-8 bg-gradient-to-br from-[#D2D6F7] via-[#E2F1F8] to-[#E3F6EC] text-[#1E1B4B] transition-colors duration-300 relative flex flex-col items-center select-none">
       
-      {/* Background Glowing Blobs matching the mockup */}
-      <div className="absolute top-[8%] left-[12%] w-[480px] h-[480px] bg-gradient-to-tr from-[#8A95F6]/40 to-[#6366F1]/30 rounded-full blur-[100px] pointer-events-none z-0" />
-      <div className="absolute top-[25%] right-[8%] w-[500px] h-[500px] bg-gradient-to-tr from-[#C084FC]/35 to-[#818CF8]/25 rounded-full blur-[120px] pointer-events-none z-0" />
-      <div className="absolute bottom-[20%] left-[8%] w-[420px] h-[420px] bg-gradient-to-tr from-[#FED7AA]/30 to-[#FDBA74]/20 rounded-full blur-[100px] pointer-events-none z-0" />
-      <div className="absolute bottom-[8%] right-[12%] w-[480px] h-[480px] bg-gradient-to-tr from-[#A7F3D0]/35 to-[#6EE7B7]/25 rounded-full blur-[100px] pointer-events-none z-0" />
+      {/* Background Interactive 2D Code Constellation */}
+      <InteractiveCodeMatrix2D />
       
       {/* Frosted Glass Panel Container wrapping the dashboard matching the mockup */}
       <div className="w-full max-w-6xl rounded-[36px] bg-white/40 backdrop-blur-[24px] border border-white/60 shadow-[0_24px_60px_rgba(99,102,241,0.05)] p-8 lg:p-10 flex flex-col gap-8 relative z-10">
         
         {/* Banner Section - Matches Mockup perfectly */}
-        <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-white/70 via-white/50 to-white/20 border border-white/80 p-8 lg:p-10 flex flex-col md:flex-row justify-start items-start md:items-center min-h-[220px] shadow-[0_12px_40px_rgba(99,102,241,0.04)] gap-10 lg:gap-20 backdrop-blur-xl">
-          
-          {/* Accent blobs in the banner card */}
-          <div className="absolute top-[-30%] right-[-5%] w-[260px] h-[260px] bg-gradient-to-tr from-[#6366F1] to-[#D946EF] rounded-full blur-3xl opacity-15 pointer-events-none" />
-          <div className="absolute bottom-[-30%] left-[5%] w-[220px] h-[220px] bg-gradient-to-tr from-[#F472B6] to-[#F59E0B] rounded-full blur-3xl opacity-10 pointer-events-none" />
+        <ThreeDTiltCard maxTilt={2} className="w-full">
+          <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-white/70 via-white/50 to-white/20 border border-white/80 p-8 lg:p-10 flex flex-col md:flex-row justify-start items-start md:items-center min-h-[220px] shadow-[0_12px_40px_rgba(99,102,241,0.04)] gap-10 lg:gap-20 backdrop-blur-xl h-full">
+            
+            {/* Accent blobs in the banner card */}
+            <div className="absolute top-[-30%] right-[-5%] w-[260px] h-[260px] bg-gradient-to-tr from-[#6366F1] to-[#D946EF] rounded-full blur-3xl opacity-15 pointer-events-none" />
+            <div className="absolute bottom-[-30%] left-[5%] w-[220px] h-[220px] bg-gradient-to-tr from-[#F472B6] to-[#F59E0B] rounded-full blur-3xl opacity-10 pointer-events-none" />
 
-          <div className="max-w-xl flex flex-col gap-2.5 text-left z-10 flex-1">
-            {/* User Greeting Tag */}
-            <div className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/90 border border-indigo-100/60 px-3.5 py-1.5 rounded-full w-fit text-xs font-bold shadow-sm select-none mb-1 animate-pulse duration-1000">
-              <span>Welcome back, {capitalizedUser}!</span>
-              <span>👋</span>
+            <div className="max-w-xl flex flex-col gap-2.5 text-left z-10 flex-1">
+              {/* User Greeting Tag */}
+              <div className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/90 border border-indigo-100/60 px-3.5 py-1.5 rounded-full w-fit text-xs font-bold shadow-sm select-none mb-1 animate-pulse duration-1000">
+                <span>Welcome back, {capitalizedUser}!</span>
+                <span>👋</span>
+              </div>
+
+              <h1 className="text-3xl lg:text-4xl font-black text-[#1E1B4B] leading-tight font-sans tracking-tight">
+                Crack Interviews.<br />Build Your Future.
+              </h1>
+              
+              <p className="text-xs text-[#1E1B4B]/60 leading-relaxed max-w-md mt-1 font-semibold">
+                AI-powered practice to help you master DSA, System Design, and real-world coding interviews.
+              </p>
+              
+              <button
+                onClick={() => onNavigateToPractice()}
+                className="mt-5 px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl text-xs font-black hover:opacity-90 active:scale-[0.98] transition-all flex items-center gap-3.5 shadow-md w-fit group"
+              >
+                <span>Start Practicing</span>
+                <span className="text-white/40">|</span>
+                <span className="font-mono text-xs group-hover:translate-x-0.5 transition-transform">&lt;/&gt;</span>
+              </button>
             </div>
 
-            <h1 className="text-3xl lg:text-4xl font-black text-[#1E1B4B] leading-tight font-sans tracking-tight">
-              Crack Interviews.<br />Build Your Future.
-            </h1>
-            
-            <p className="text-xs text-[#1E1B4B]/60 leading-relaxed max-w-md mt-1 font-semibold">
-              AI-powered practice to help you master DSA, System Design, and real-world coding interviews.
-            </p>
-            
-            <button
-              onClick={() => onNavigateToPractice()}
-              className="mt-5 px-10 py-4 bg-[#1E1B4B] text-white rounded-2xl text-xs font-black hover:opacity-90 active:scale-[0.98] transition-all flex items-center gap-3.5 shadow-md w-fit group"
-            >
-              <span>Start Practicing</span>
-              <span className="text-white/40">|</span>
-              <span className="font-mono text-xs group-hover:translate-x-0.5 transition-transform">&lt;/&gt;</span>
-            </button>
-          </div>
-
-          {/* Interactive 3D Model on the right */}
-          <div className="w-full md:w-[300px] h-[220px] shrink-0 z-10 flex items-center justify-center relative">
-            <div className="absolute w-[240px] h-[240px] bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-            <Robot3D />
-          </div>
-        </section>
+            {/* Interactive 3D Model on the right */}
+            <div className="w-full md:w-[300px] h-[220px] shrink-0 z-10 flex items-center justify-center relative">
+              <div className="absolute w-[240px] h-[240px] bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+              <Robot3D />
+            </div>
+          </section>
+        </ThreeDTiltCard>
 
         {/* Stats Grid - Soft tinted glassmorphic card backgrounds matching the mockup */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           
           {/* Card 1: Problems Solved (Soft lavender/purple tint) */}
-          <div className="bg-[#EBEAFB]/55 border border-[#D8D4F5]/70 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(99,102,241,0.1)] hover:border-indigo-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-indigo-900/40 opacity-40" />
-            <div className="w-12 h-12 rounded-2xl bg-white border border-indigo-200/50 text-[#3C3B6E] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-              <span className="font-mono text-sm font-black">&lt;/&gt;</span>
+          <ThreeDTiltCard maxTilt={10}>
+            <div className="bg-[#EBEAFB]/55 border border-[#D8D4F5]/70 rounded-[28px] p-6 flex items-center gap-5 text-left relative overflow-hidden group h-full">
+              <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-indigo-900/40 opacity-40" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-indigo-200/50 text-[#3C3B6E] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <span className="font-mono text-sm font-black">&lt;/&gt;</span>
+              </div>
+              <div className="flex flex-col z-10">
+                <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedSolved}</span>
+                <span className="text-[11px] text-[#3C3B6E]/70 font-extrabold mt-2 uppercase tracking-wider">Problems Solved</span>
+                <span className="text-[10px] text-indigo-600 font-extrabold mt-0.5">↑ +{stats.problemsSolved} this week</span>
+              </div>
             </div>
-            <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedSolved}</span>
-              <span className="text-[11px] text-[#3C3B6E]/70 font-extrabold mt-2 uppercase tracking-wider">Problems Solved</span>
-              <span className="text-[10px] text-indigo-600 font-extrabold mt-0.5">↑ +{stats.problemsSolved} this week</span>
-            </div>
-          </div>
+          </ThreeDTiltCard>
 
           {/* Card 2: Mock Interviews (Soft green/emerald tint) */}
-          <div className="bg-[#EAF7EC]/55 border border-[#D4EED8]/70 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(16,185,129,0.1)] hover:border-emerald-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-emerald-900/40 opacity-40" />
-            <div className="w-12 h-12 rounded-2xl bg-white border border-emerald-200/50 text-[#2E5E3D] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-              <Calendar className="w-5 h-5" />
+          <ThreeDTiltCard maxTilt={10}>
+            <div className="bg-[#EAF7EC]/55 border border-[#D4EED8]/70 rounded-[28px] p-6 flex items-center gap-5 text-left relative overflow-hidden group h-full">
+              <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-emerald-900/40 opacity-40" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-emerald-200/50 text-[#2E5E3D] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col z-10">
+                <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedInterviews}</span>
+                <span className="text-[11px] text-[#2E5E3D]/70 font-extrabold mt-2 uppercase tracking-wider">Mock Interviews</span>
+                <span className="text-[10px] text-emerald-600 font-extrabold mt-0.5">↑ +{stats.mockInterviews} this week</span>
+              </div>
             </div>
-            <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedInterviews}</span>
-              <span className="text-[11px] text-[#2E5E3D]/70 font-extrabold mt-2 uppercase tracking-wider">Mock Interviews</span>
-              <span className="text-[10px] text-emerald-600 font-extrabold mt-0.5">↑ +{stats.mockInterviews} this week</span>
-            </div>
-          </div>
+          </ThreeDTiltCard>
 
           {/* Card 3: Success Rate (Soft orange/peach tint) */}
-          <div className="bg-[#FDF3E7]/55 border border-[#F7E1C5]/75 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(245,158,11,0.1)] hover:border-amber-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-amber-900/40 opacity-40" />
-            <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200/50 text-[#6B4B1B] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-              <Trophy className="w-5 h-5" />
+          <ThreeDTiltCard maxTilt={10}>
+            <div className="bg-[#FDF3E7]/55 border border-[#F7E1C5]/75 rounded-[28px] p-6 flex items-center gap-5 text-left relative overflow-hidden group h-full">
+              <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-amber-900/40 opacity-40" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200/50 text-[#6B4B1B] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col z-10">
+                <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedSuccess}%</span>
+                <span className="text-[11px] text-[#6B4B1B]/70 font-extrabold mt-2 uppercase tracking-wider">Success Rate</span>
+                <span className="text-[10px] text-amber-600 font-extrabold mt-0.5">↑ +{stats.successRate}% this week</span>
+              </div>
             </div>
-            <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedSuccess}%</span>
-              <span className="text-[11px] text-[#6B4B1B]/70 font-extrabold mt-2 uppercase tracking-wider">Success Rate</span>
-              <span className="text-[10px] text-amber-600 font-extrabold mt-0.5">↑ +{stats.successRate}% this week</span>
-            </div>
-          </div>
+          </ThreeDTiltCard>
 
           {/* Card 4: XP Earned (Soft blue/cyan tint) */}
-          <div className="bg-[#EAF3FA]/55 border border-[#D0E5F5]/70 rounded-[28px] p-6 flex items-center gap-5 shadow-[0_4px_25px_rgba(0,0,0,0.015)] hover:shadow-[0_15px_35px_rgba(59,130,246,0.1)] hover:border-blue-300/80 hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 text-left relative overflow-hidden group">
-            <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-blue-900/40 opacity-40" />
-            <div className="w-12 h-12 rounded-2xl bg-white border border-blue-200/50 text-[#214660] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-              <BarChart2 className="w-5 h-5" />
+          <ThreeDTiltCard maxTilt={10}>
+            <div className="bg-[#EAF3FA]/55 border border-[#D0E5F5]/70 rounded-[28px] p-6 flex items-center gap-5 text-left relative overflow-hidden group h-full">
+              <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full border border-blue-900/40 opacity-40" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-blue-200/50 text-[#214660] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <BarChart2 className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col z-10">
+                <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedXP}</span>
+                <span className="text-[11px] text-[#214660]/70 font-extrabold mt-2 uppercase tracking-wider">XP Earned</span>
+                <span className="text-[10px] text-blue-600 font-extrabold mt-0.5">↑ +{stats.xp} this week</span>
+              </div>
             </div>
-            <div className="flex flex-col z-10">
-              <span className="text-3xl font-black text-[#1E1B4B] font-mono leading-none">{animatedXP}</span>
-              <span className="text-[11px] text-[#214660]/70 font-extrabold mt-2 uppercase tracking-wider">XP Earned</span>
-              <span className="text-[10px] text-blue-600 font-extrabold mt-0.5">↑ +{stats.xp} this week</span>
-            </div>
-          </div>
+          </ThreeDTiltCard>
 
         </section>
 
         {/* Dynamic content tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
           
           {/* Practice by Language card */}
-          <section className="lg:col-span-2 rounded-[28px] bg-white/60 border border-white/70 p-6 flex flex-col gap-6 shadow-[0_12px_40px_rgba(0,0,0,0.015)] backdrop-blur-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-[#1E1B4B]/10">
-              <h3 className="text-sm font-black text-[#1E1B4B] tracking-wide flex items-center gap-2">
-                <span className="w-1.5 h-3.5 bg-[#6366F1] rounded-full" />
-                <span>Practice by Language</span>
-              </h3>
-              <span className="text-xs font-bold text-[#6366F1] bg-indigo-50 border border-indigo-100/55 px-2 py-0.5 rounded-md font-mono select-none">&lt;/&gt;</span>
-            </div>
+          <ThreeDTiltCard maxTilt={3} className="lg:col-span-2">
+            <section className="rounded-[28px] bg-white/60 border border-white/70 p-6 flex flex-col gap-6 shadow-[0_12px_40px_rgba(0,0,0,0.015)] backdrop-blur-xl h-full justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-[#1E1B4B]/10">
+                <h3 className="text-sm font-black text-[#1E1B4B] tracking-wide flex items-center gap-2">
+                  <span className="w-1.5 h-3.5 bg-[#6366F1] rounded-full" />
+                  <span>Practice by Language</span>
+                </h3>
+                <span className="text-xs font-bold text-[#6366F1] bg-indigo-50 border border-indigo-100/55 px-2 py-0.5 rounded-md font-mono select-none">&lt;/&gt;</span>
+              </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {[
-                { name: 'Python', icon: PythonIcon, count: stats.languages?.python || 0, color: 'from-[#3776AB] to-[#FFD43B]', shadowColor: 'hover:shadow-[#3776AB]/15', borderColor: 'hover:border-[#3776AB]/30', tint: 'bg-[#FDFBE7]/55 border-[#F7F2C5]/70 text-[#5F5B2F]' },
-                { name: 'TypeScript', icon: TypeScriptIcon, count: stats.languages?.typescript || 0, color: 'from-[#3178C6] to-[#00599C]', shadowColor: 'hover:shadow-[#3178C6]/15', borderColor: 'hover:border-[#3178C6]/30', tint: 'bg-[#EAF3FA]/55 border-[#D0E5F5]/70 text-[#214660]' },
-                { name: 'C++', icon: CppIcon, count: stats.languages?.cpp || 0, color: 'from-[#00599C] to-[#0080FF]', shadowColor: 'hover:shadow-[#00599C]/15', borderColor: 'hover:border-[#00599C]/30', tint: 'bg-[#E9EDF5]/55 border-[#CBD6EA]/70 text-[#2C3C58]' },
-                { name: 'Java', icon: JavaIcon, count: stats.languages?.java || 0, color: 'from-[#EA2D2E] to-[#F89820]', shadowColor: 'hover:shadow-[#EA2D2E]/15', borderColor: 'hover:border-[#EA2D2E]/30', tint: 'bg-[#FAF1F1]/55 border-[#F5D8D8]/70 text-[#5F2F2F]' },
-                { name: 'C', icon: CIcon, count: stats.languages?.c || 0, color: 'from-[#00599C] to-[#5B83AD]', shadowColor: 'hover:shadow-[#00599C]/10', borderColor: 'hover:border-[#00599C]/20', tint: 'bg-[#EAF7F3]/55 border-[#D0EDE3]/70 text-[#2E5A4D]' }
-              ].map((lang, idx) => {
-                const IconComponent = lang.icon;
-                const progressWidth = Math.max(8, Math.min(100, (lang.count / totalSystemProblems) * 100));
-                return (
-                  <button 
-                    key={idx} 
-                    onClick={() => onNavigateToPractice(lang.name.toLowerCase())}
-                    className={`${lang.tint} shadow-[0_4px_15px_rgba(0,0,0,0.01)] hover:shadow-lg ${lang.shadowColor} ${lang.borderColor} hover:scale-[1.04] hover:-translate-y-1 transition-all duration-300 rounded-[24px] p-5 flex flex-col items-center justify-center text-center gap-3.5 w-full group cursor-pointer relative overflow-hidden`}
-                  >
-                    <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full border border-current opacity-30" />
-                    <div className="group-hover:scale-110 transition-transform duration-300 bg-white/70 p-2.5 rounded-xl border border-white/50 shadow-sm">
-                      <IconComponent />
-                    </div>
-                    <span className="text-xs font-black text-[#1E1B4B]">{lang.name}</span>
-                    <span className="text-[11px] font-bold text-[#1E1B4B]/40 font-mono">{lang.count} / {totalSystemProblems}</span>
-                    
-                    <div className="w-full h-1.5 bg-white/50 border border-white/40 rounded-full mt-1 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-1000 bg-gradient-to-r ${lang.color}`} 
-                        style={{ width: `${progressWidth}%` }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-center">
+                <div className="xl:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {[
+                    { name: 'Python', icon: PythonIcon, count: stats.languages?.python || 0, color: 'from-[#3776AB] to-[#FFD43B]', shadowColor: 'hover:shadow-[#3776AB]/15', borderColor: 'hover:border-[#3776AB]/30', tint: 'bg-[#FDFBE7]/55 border-[#F7F2C5]/70 text-[#5F5B2F]' },
+                    { name: 'TypeScript', icon: TypeScriptIcon, count: stats.languages?.typescript || 0, color: 'from-[#3178C6] to-[#00599C]', shadowColor: 'hover:shadow-[#3178C6]/15', borderColor: 'hover:border-[#3178C6]/30', tint: 'bg-[#EAF3FA]/55 border-[#D0E5F5]/70 text-[#214660]' },
+                    { name: 'C++', icon: CppIcon, count: stats.languages?.cpp || 0, color: 'from-[#00599C] to-[#0080FF]', shadowColor: 'hover:shadow-[#00599C]/15', borderColor: 'hover:border-[#00599C]/30', tint: 'bg-[#E9EDF5]/55 border-[#CBD6EA]/70 text-[#2C3C58]' },
+                    { name: 'Java', icon: JavaIcon, count: stats.languages?.java || 0, color: 'from-[#EA2D2E] to-[#F89820]', shadowColor: 'hover:shadow-[#EA2D2E]/15', borderColor: 'hover:border-[#EA2D2E]/30', tint: 'bg-[#FAF1F1]/55 border-[#F5D8D8]/70 text-[#5F2F2F]' },
+                    { name: 'C', icon: CIcon, count: stats.languages?.c || 0, color: 'from-[#00599C] to-[#5B83AD]', shadowColor: 'hover:shadow-[#00599C]/10', borderColor: 'hover:border-[#00599C]/20', tint: 'bg-[#EAF7F3]/55 border-[#D0EDE3]/70 text-[#2E5A4D]' }
+                  ].map((lang, idx) => {
+                    const IconComponent = lang.icon;
+                    const progressWidth = Math.max(8, Math.min(100, (lang.count / totalSystemProblems) * 100));
+                    return (
+                      <button 
+                        key={idx} 
+                        onClick={() => onNavigateToPractice(lang.name.toLowerCase())}
+                        className={`${lang.tint} shadow-[0_4px_15px_rgba(0,0,0,0.01)] hover:shadow-lg ${lang.shadowColor} ${lang.borderColor} hover:scale-[1.04] hover:-translate-y-1 transition-all duration-300 rounded-[24px] p-5 flex flex-col items-center justify-center text-center gap-3.5 w-full group cursor-pointer relative overflow-hidden`}
+                      >
+                        <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full border border-current opacity-30" />
+                        <div className="group-hover:scale-110 transition-transform duration-300 bg-white/70 p-2.5 rounded-xl border border-white/50 shadow-sm">
+                          <IconComponent />
+                        </div>
+                        <span className="text-xs font-black text-[#1E1B4B]">{lang.name}</span>
+                        <span className="text-[11px] font-bold text-[#1E1B4B]/40 font-mono">{lang.count} / {totalSystemProblems}</span>
+                        
+                        <div className="w-full h-1.5 bg-white/50 border border-white/40 rounded-full mt-1 overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-1000 bg-gradient-to-r ${lang.color}`} 
+                            style={{ width: `${progressWidth}%` }}
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <div className="xl:col-span-2 w-full h-full flex flex-col justify-center select-none">
+                  <LanguageProgress3D 
+                    stats={stats.languages} 
+                    onSelectLanguage={(lang) => onNavigateToPractice(lang)}
+                  />
+                </div>
+              </div>
+            </section>
+          </ThreeDTiltCard>
 
           {/* Recent Activity card - Glassmorphism timeline + Floating Code Window Deco */}
-          <section className="rounded-[28px] bg-white/60 border border-white/70 p-6 flex flex-col gap-4 shadow-[0_12px_40px_rgba(0,0,0,0.015)] text-left relative overflow-hidden backdrop-blur-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-[#1E1B4B]/10">
-              <h3 className="text-sm font-black text-[#1E1B4B] tracking-wide flex items-center gap-2">
-                <span className="w-1.5 h-3.5 bg-[#D946EF] rounded-full" />
-                <span>Recent Activity</span>
-              </h3>
-            </div>
+          <ThreeDTiltCard maxTilt={3} className="h-full">
+            <section className="rounded-[28px] bg-white/60 border border-white/70 p-6 flex flex-col gap-4 shadow-[0_12px_40px_rgba(0,0,0,0.015)] text-left relative overflow-hidden backdrop-blur-xl h-full justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-[#1E1B4B]/10">
+                <h3 className="text-sm font-black text-[#1E1B4B] tracking-wide flex items-center gap-2">
+                  <span className="w-1.5 h-3.5 bg-[#D946EF] rounded-full" />
+                  <span>Recent Activity</span>
+                </h3>
+              </div>
 
-            <div className="flex-1 flex flex-col gap-4 relative z-10">
-              {stats.activities.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto relative">
-                  {/* Floating glass illustration matching mockup */}
-                  <div className="w-24 h-24 mb-4 relative flex items-center justify-center animate-pulse">
-                    <svg className="w-full h-full text-indigo-400/20" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="15" y="20" width="70" height="50" rx="8" fill="url(#grad)" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" />
-                      <circle cx="27" cy="30" r="2.5" fill="#EF4444" />
-                      <circle cx="35" cy="30" r="2.5" fill="#F59E0B" />
-                      <circle cx="43" cy="30" r="2.5" fill="#10B981" />
-                      <path d="M40 45 L45 50 L40 55" stroke="#6366F1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M60 45 L55 50 L60 55" stroke="#6366F1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M48 57 L52 43" stroke="#D946EF" strokeWidth="2" strokeLinecap="round" />
-                      <defs>
-                        <linearGradient id="grad" x1="15" y1="20" x2="85" y2="70" gradientUnits="userSpaceOnUse">
-                          <stop stopColor="rgba(255,255,255,0.7)" />
-                          <stop offset="1" stopColor="rgba(238,242,255,0.4)" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </div>
-                  <span className="text-xs text-[#1E1B4B]/60 font-bold">No logs available</span>
-                  <span className="text-[10px] text-zinc-400 mt-1 max-w-[200px] text-center font-bold leading-relaxed">
-                    Submit code in the Practice editor to record accomplishments!
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3.5">
-                  {stats.activities.map((act, idx) => (
-                    <div key={act.id || idx} className="flex items-start gap-3.5 text-xs border-b border-indigo-50/50 pb-3 last:border-0 last:pb-0 hover:translate-x-1 transition-transform duration-200">
-                      <div className="mt-0.5">
-                        {act.type === 'solve' ? (
-                          <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm">
-                            <CheckCircle2 className="w-4 h-4" />
-                          </div>
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
-                            <Calendar className="w-3.5 h-3.5" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 flex flex-col gap-0.5">
-                        <span className="font-extrabold text-[#1E1B4B]">{act.title}</span>
-                        <span className="text-[10px] text-[#1E1B4B]/50 font-bold">{act.detail}</span>
-                      </div>
-                      <span className="text-[9px] text-[#1E1B4B]/40 font-mono mt-0.5">
-                        {act.timestamp ? `${Math.ceil((Date.now() - act.timestamp) / (60 * 60 * 1000))}h ago` : '2h ago'}
-                      </span>
+              <div className="flex-1 flex flex-col gap-4 relative z-10 justify-center">
+                {stats.activities.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto relative">
+                    {/* Floating glass illustration matching mockup */}
+                    <div className="w-24 h-24 mb-4 relative flex items-center justify-center animate-pulse">
+                      <svg className="w-full h-full text-indigo-400/20" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="15" y="20" width="70" height="50" rx="8" fill="url(#grad)" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" />
+                        <circle cx="27" cy="30" r="2.5" fill="#EF4444" />
+                        <circle cx="35" cy="30" r="2.5" fill="#F59E0B" />
+                        <circle cx="43" cy="30" r="2.5" fill="#10B981" />
+                        <path d="M40 45 L45 50 L40 55" stroke="#6366F1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M60 45 L55 50 L60 55" stroke="#6366F1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M48 57 L52 43" stroke="#D946EF" strokeWidth="2" strokeLinecap="round" />
+                        <defs>
+                          <linearGradient id="grad" x1="15" y1="20" x2="85" y2="70" gradientUnits="userSpaceOnUse">
+                            <stop stopColor="rgba(255,255,255,0.7)" />
+                            <stop offset="1" stopColor="rgba(238,242,255,0.4)" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <span className="text-xs text-[#1E1B4B]/60 font-bold">No logs available</span>
+                    <span className="text-[10px] text-zinc-400 mt-1 max-w-[200px] text-center font-bold leading-relaxed">
+                      Submit code in the Practice editor to record accomplishments!
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3.5">
+                    {stats.activities.map((act, idx) => (
+                      <div key={act.id || idx} className="flex items-start gap-3.5 text-xs border-b border-indigo-50/50 pb-3 last:border-0 last:pb-0 hover:translate-x-1 transition-transform duration-200">
+                        <div className="mt-0.5">
+                          {act.type === 'solve' ? (
+                            <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm">
+                              <CheckCircle2 className="w-4 h-4" />
+                            </div>
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                              <Calendar className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <span className="font-extrabold text-[#1E1B4B]">{act.title}</span>
+                          <span className="text-[10px] text-[#1E1B4B]/50 font-bold">{act.detail}</span>
+                        </div>
+                        <span className="text-[9px] text-[#1E1B4B]/40 font-mono mt-0.5">
+                          {act.timestamp ? `${Math.ceil((Date.now() - act.timestamp) / (60 * 60 * 1000))}h ago` : '2h ago'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Decorative background visual matching the mockup's code screen */}
-            <div className="absolute right-[-10px] bottom-[-20px] w-24 h-24 bg-gradient-to-tr from-[#D946EF]/5 to-[#6366F1]/5 rounded-full blur-xl pointer-events-none" />
-          </section>
+              {/* Decorative background visual matching the mockup's code screen */}
+              <div className="absolute right-[-10px] bottom-[-20px] w-24 h-24 bg-gradient-to-tr from-[#D946EF]/5 to-[#6366F1]/5 rounded-full blur-xl pointer-events-none" />
+            </section>
+          </ThreeDTiltCard>
 
         </div>
 

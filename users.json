@@ -29,6 +29,44 @@
   },
   "kd7158856@gmail.com": {
     "email": "kd7158856@gmail.com",
+    "xp": 20,
+    "problemsSolved": 1,
+    "mockInterviews": 0,
+    "successRate": 91,
+    "languages": {
+      "python": 1,
+      "typescript": 0,
+      "c": 0,
+      "cpp": 0,
+      "java": 0
+    },
+    "activities": [
+      {
+        "id": "solve-1782623787974",
+        "type": "solve",
+        "title": "Solved Two Sum",
+        "detail": "Python - Easy",
+        "timestamp": 1782623787974
+      },
+      {
+        "id": "welcome-1782422209568",
+        "type": "achievement",
+        "title": "Account Activated",
+        "detail": "Created new profile on DevInterview.AI",
+        "timestamp": 1782422209568
+      }
+    ],
+    "savedCode": {
+      "two-sum": {
+        "python": "# Two Sum\n# Given an array of integers nums and an integer target,\n# return indices of the two numbers such that they add up to target.\n\ndef twoSum(nums: List[int], target: int) -> List[int]:\n    # Your code here\n    return []",
+        "typescript": "// Two Sum\n// Given an array of integers nums and an integer target,\n// return indices of the two numbers such that they add up to target.\n\nfunction twoSum(nums: number[], target: number): number[] {\n  // Your code here\n  \n  return [];\n}"
+      }
+    },
+    "passwordHash": "$2b$10$ydR88ZWQWaaloEz/B/tYCeLw32SZ.VfKMQVoj/uK2blf0lDmpzcEG",
+    "sessionToken": "77762b72e8cda87a154213ad34b2547b5f60c7ea254d035eb8ad7dcc5911cbef"
+  },
+  "shreyashahidz1@gmail.com": {
+    "email": "shreyashahidz1@gmail.com",
     "xp": 0,
     "problemsSolved": 0,
     "mockInterviews": 0,
@@ -42,11 +80,11 @@
     },
     "activities": [
       {
-        "id": "welcome-1782422209568",
+        "id": "welcome-1782532525194",
         "type": "achievement",
         "title": "Account Activated",
         "detail": "Created new profile on DevInterview.AI",
-        "timestamp": 1782422209568
+        "timestamp": 1782532525195
       }
     ],
     "savedCode": {

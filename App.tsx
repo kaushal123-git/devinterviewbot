@@ -73,19 +73,27 @@ const App: React.FC = () => {
     }
   }, [activeTab, theme]);
 
-  // Load user progress on mount
+  // Load user session on mount
   useEffect(() => {
-    const savedEmail = localStorage.getItem('devinterview-user-email');
-    if (savedEmail) {
-      fetch(`${getApiBase()}/api/user/progress?email=${encodeURIComponent(savedEmail)}`)
-        .then(res => res.json())
+    const sessionToken = localStorage.getItem('devinterview-session-token');
+    if (sessionToken) {
+      fetch(`${getApiBase()}/api/auth/validate-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionToken })
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Session invalid');
+          return res.json();
+        })
         .then(data => {
-          if (data.user) {
+          if (data.success && data.user) {
             setUser(data.user);
           }
         })
         .catch(err => {
-          console.warn('[App] Could not restore user session from local server:', err);
+          console.warn('[App] Could not restore user session:', err);
+          localStorage.removeItem('devinterview-session-token');
         });
     }
   }, []);
@@ -151,7 +159,15 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('devinterview-user-email');
+    const sessionToken = localStorage.getItem('devinterview-session-token');
+    if (sessionToken) {
+      fetch(`${getApiBase()}/api/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionToken })
+      }).catch(err => console.warn('[App] Logout notify failed:', err));
+    }
+    localStorage.removeItem('devinterview-session-token');
     setUser(null);
     setActiveTab('dashboard');
   };
@@ -235,9 +251,9 @@ const App: React.FC = () => {
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
-        onLoginSuccess={(userData) => {
+        onLoginSuccess={(userData, token) => {
           setUser(userData);
-          localStorage.setItem('devinterview-user-email', userData.email);
+          localStorage.setItem('devinterview-session-token', token);
         }}
       />
     </div>

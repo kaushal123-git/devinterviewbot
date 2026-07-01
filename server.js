@@ -1,10 +1,13 @@
 import express from 'express';
 import cors from 'cors';
-import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -22,9 +25,6 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const USERS_FILE = path.join(__dirname, 'users.json');
-
-// Memory storage for OTPs
-const otps = new Map(); // email -> { code, expires }
 
 // Helper: load users database
 function loadUsers() {
@@ -48,132 +48,55 @@ function saveUsers(users) {
   }
 }
 
-// Route: Request OTP
-app.post('/api/auth/send-otp', async (req, res) => {
+// Route: Check Email & password availability
+app.post('/api/auth/check-email', (req, res) => {
   const { email } = req.body;
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   }
-
-  // Generate 6-digit code
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expires = Date.now() + 5 * 60 * 1000; // 5 minutes validity
-  otps.set(email.toLowerCase(), { code, expires });
-
-  console.log(`\n===========================================`);
-  console.log(`[AUTH] Generating OTP for ${email}`);
-  console.log(`[AUTH] Verification OTP Code: ${code}`);
-  console.log(`===========================================\n`);
-
-  let testMessageUrl = null;
-  let sentWithGmail = false;
-
-  try {
-    const smtpEmail = process.env.SMTP_EMAIL;
-    const smtpPassword = process.env.SMTP_PASSWORD;
-
-    let transporter;
-
-    if (smtpEmail && smtpPassword) {
-      console.log('[Auth] Dispatching OTP via Gmail SMTP...');
-      transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: smtpEmail,
-          pass: smtpPassword
-        }
-      });
-      sentWithGmail = true;
-    } else {
-      console.log('[Auth] SMTP credentials not set. Bootstrapping Ethereal test inbox...');
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
-        }
-      });
-    }
-
-    const mailOptions = {
-      from: smtpEmail ? `"DevInterview AI" <${smtpEmail}>` : '"DevInterview AI Sandbox" <no-reply@devinterview.ai>',
-      to: email,
-      subject: 'Your DevInterview AI Verification Code',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e7; border-radius: 8px; background-color: #ffffff; color: #18181b;">
-          <h2 style="color: #09090b; border-bottom: 2px solid #27272a; padding-bottom: 10px;">DevInterview.AI Verification</h2>
-          <p>Hello,</p>
-          <p>Thank you for logging in to your DevInterview.AI learning session. Use the following verification code to authenticate your account:</p>
-          <div style="margin: 24px 0; text-align: center;">
-            <span style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: bold; letter-spacing: 6px; padding: 12px 24px; border: 1px dashed #a1a1aa; border-radius: 4px; background-color: #f4f4f5; display: inline-block;">${code}</span>
-          </div>
-          <p style="color: #71717a; font-size: 12px;">This code is valid for the next 5 minutes. If you did not request this code, please ignore this email.</p>
-          <hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 20px 0;" />
-          <p style="font-size: 11px; color: #a1a1aa; text-align: center;">DevInterview.AI Workspace &bull; Sandbox Mode</p>
-        </div>
-      `
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-
-    if (!sentWithGmail) {
-      testMessageUrl = nodemailer.getTestMessageUrl(info);
-      console.log(`[Auth] Ethereal Inbox Link: ${testMessageUrl}`);
-    }
-
-    return res.json({ 
-      success: true, 
-      message: 'OTP sent successfully.', 
-      previewUrl: testMessageUrl,
-      debugCode: code // send debug code for instant client integration in sandbox/testing
-    });
-
-  } catch (err) {
-    console.error('[Auth] Failed to send email via SMTP:', err);
-    // In local sandbox mode, return success with debugCode so the user is never blocked
-    return res.json({ 
-      success: true, 
-      message: 'OTP dispatched (logged in server console).', 
-      previewUrl: null,
-      debugCode: code
+  const users = loadUsers();
+  const lowerEmail = email.toLowerCase();
+  const user = users[lowerEmail];
+  if (user) {
+    return res.json({
+      exists: true,
+      hasPassword: !!user.passwordHash
     });
   }
+  return res.json({
+    exists: false,
+    hasPassword: false
+  });
 });
 
-// Route: Verify OTP and Login
-app.post('/api/auth/verify-otp', (req, res) => {
-  const { email, code } = req.body;
-  if (!email || !code) {
-    return res.status(400).json({ error: 'Email and OTP code are required.' });
+// Route: Register / Set password
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password || password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
   }
-
-  const record = otps.get(email.toLowerCase());
-  if (!record) {
-    return res.status(400).json({ error: 'No OTP requested or session expired. Please request a new code.' });
-  }
-
-  if (Date.now() > record.expires) {
-    otps.delete(email.toLowerCase());
-    return res.status(400).json({ error: 'OTP code has expired. Please request a new one.' });
-  }
-
-  if (record.code !== code.trim()) {
-    return res.status(400).json({ error: 'Invalid verification code. Please try again.' });
-  }
-
-  // OTP verified successfully
-  otps.delete(email.toLowerCase());
 
   const users = loadUsers();
   const lowerEmail = email.toLowerCase();
+  let user = users[lowerEmail];
 
-  if (!users[lowerEmail]) {
-    // Create new profile if it doesn't exist
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(password, salt);
+  const sessionToken = crypto.randomBytes(32).toString('hex');
+
+  if (user) {
+    if (user.passwordHash) {
+      return res.status(400).json({ error: 'Account already exists with a password. Please sign in.' });
+    }
+    // Update existing OTP-created profile with password
+    user.passwordHash = passwordHash;
+    user.sessionToken = sessionToken;
+  } else {
+    // Create new profile
     users[lowerEmail] = {
       email: lowerEmail,
+      passwordHash,
+      sessionToken,
       xp: 0,
       problemsSolved: 0,
       mockInterviews: 0,
@@ -190,13 +113,86 @@ app.post('/api/auth/verify-otp', (req, res) => {
       ],
       savedCode: {}
     };
-    saveUsers(users);
+    user = users[lowerEmail];
   }
 
+  saveUsers(users);
+
+  // Return user without passwordHash
+  const { passwordHash: _, ...safeUser } = user;
   return res.json({
     success: true,
-    user: users[lowerEmail]
+    user: safeUser,
+    sessionToken
   });
+});
+
+// Route: Login with password
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  const users = loadUsers();
+  const lowerEmail = email.toLowerCase();
+  const user = users[lowerEmail];
+
+  if (!user || !user.passwordHash) {
+    return res.status(400).json({ error: 'Invalid email or password.' });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.passwordHash);
+  if (!isMatch) {
+    return res.status(400).json({ error: 'Invalid email or password.' });
+  }
+
+  const sessionToken = crypto.randomBytes(32).toString('hex');
+  user.sessionToken = sessionToken;
+  saveUsers(users);
+
+  const { passwordHash: _, ...safeUser } = user;
+  return res.json({
+    success: true,
+    user: safeUser,
+    sessionToken
+  });
+});
+
+// Route: Validate Session Token
+app.post('/api/auth/validate-token', (req, res) => {
+  const { sessionToken } = req.body;
+  if (!sessionToken) {
+    return res.status(400).json({ error: 'Token is required.' });
+  }
+
+  const users = loadUsers();
+  // Find user by sessionToken
+  const user = Object.values(users).find(u => u.sessionToken === sessionToken);
+
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid or expired session.' });
+  }
+
+  const { passwordHash: _, ...safeUser } = user;
+  return res.json({
+    success: true,
+    user: safeUser
+  });
+});
+
+// Route: Logout
+app.post('/api/auth/logout', (req, res) => {
+  const { sessionToken } = req.body;
+  if (sessionToken) {
+    const users = loadUsers();
+    const user = Object.values(users).find(u => u.sessionToken === sessionToken);
+    if (user) {
+      delete user.sessionToken;
+      saveUsers(users);
+    }
+  }
+  return res.json({ success: true });
 });
 
 // Route: Get User Progress
@@ -318,6 +314,111 @@ app.get('/api/user/load-state', (req, res) => {
   const code = user.savedCode[problemId.toString()][language.toString()] || null;
   return res.json({ code });
 });
+
+// Route: Run code locally
+app.post('/api/run-code', async (req, res) => {
+  const { code, language } = req.body;
+  if (!code || !language) {
+    return res.status(400).json({ error: 'Missing code or language.' });
+  }
+
+  const tmpDir = os.tmpdir();
+  const startTime = Date.now();
+
+  // Language config: filename, compile cmd (optional), run cmd
+  const configs = {
+    python: {
+      filename: 'main.py',
+      compile: null,
+      run: (f) => `python "${f}"`
+    },
+    typescript: {
+      filename: 'main.ts',
+      compile: null,
+      run: (f) => `npx ts-node --skipProject "${f}"`
+    },
+    c: {
+      filename: 'main.c',
+      compile: (f, out) => `gcc "${f}" -o "${out}"`,
+      run: (_, out) => `"${out}"`
+    },
+    cpp: {
+      filename: 'main.cpp',
+      compile: (f, out) => `g++ "${f}" -o "${out}"`,
+      run: (_, out) => `"${out}"`
+    },
+    java: {
+      filename: 'Main.java',
+      compile: (f) => `javac "${f}"`,
+      run: (f) => `java -cp "${path.dirname(f)}" Main`
+    }
+  };
+
+  const cfg = configs[language];
+  if (!cfg) {
+    return res.status(400).json({ error: `Unsupported language: ${language}` });
+  }
+
+  // Write code to temp file
+  const srcFile = path.join(tmpDir, `devint_${Date.now()}_${cfg.filename}`);
+  const outFile = srcFile.replace(/\.[^.]+$/, process.platform === 'win32' ? '.exe' : '.out');
+
+  try {
+    fs.writeFileSync(srcFile, code, 'utf8');
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to write code to temp file.' });
+  }
+
+  const runCmd = (cmd) => new Promise((resolve) => {
+    exec(cmd, { timeout: 10000, maxBuffer: 1024 * 512 }, (error, stdout, stderr) => {
+      resolve({ error, stdout: stdout || '', stderr: stderr || '', code: error?.code ?? 0 });
+    });
+  });
+
+  try {
+    let compileStderr = '';
+
+    // Compile step (C, C++, Java)
+    if (cfg.compile) {
+      const compileCmd = cfg.compile(srcFile, outFile);
+      const compileResult = await runCmd(compileCmd);
+      if (compileResult.error && compileResult.code !== 0) {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        cleanup(srcFile, outFile);
+        return res.json({
+          stdout: '',
+          stderr: compileResult.stderr || compileResult.stdout,
+          exitCode: compileResult.code ?? 1,
+          time: `${elapsed}s`
+        });
+      }
+      compileStderr = compileResult.stderr;
+    }
+
+    // Run step
+    const runCommand = cfg.run(srcFile, outFile);
+    const runResult = await runCmd(runCommand);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+
+    cleanup(srcFile, outFile);
+    return res.json({
+      stdout: runResult.stdout,
+      stderr: runResult.stderr || compileStderr,
+      exitCode: runResult.error?.code ?? 0,
+      time: `${elapsed}s`
+    });
+
+  } catch (err) {
+    cleanup(srcFile, outFile);
+    return res.status(500).json({ error: err.message || 'Execution failed.' });
+  }
+});
+
+function cleanup(...files) {
+  files.forEach(f => {
+    try { if (f && fs.existsSync(f)) fs.unlinkSync(f); } catch (_) {}
+  });
+}
 
 // Health check
 app.get('/api/health', (req, res) => {

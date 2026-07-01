@@ -18,13 +18,19 @@ Quick start
 npm install
 ```
 
-2. Start the dev server:
+2. Start the auth/API server:
+
+```bash
+npm run server
+```
+
+3. In another terminal, start the frontend dev server:
 
 ```bash
 npm run dev
 ```
 
-3. Open the app at `http://localhost:3000`.
+4. Open the app at `http://localhost:3000`.
 
 High-level architecture
 - UI: React components in `components/` (editor, transcript, avatar preview).
@@ -119,6 +125,7 @@ guilty), nod/shake one-shot gestures, and sets normalized upper-arm Z targets to
 
 Run / Build / Deploy
 - Dev server: `npm run dev` (vite)
+- Auth/API server: `npm run server` (express on port 3002)
 - Production build: `npm run build`
 - Preview production build: `npm run preview`
 
