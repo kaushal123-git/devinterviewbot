@@ -11,6 +11,17 @@ an embedded VRM avatar preview. The avatar uses MediaPipe for face tracking, Thr
 This README explains the architecture, where code lives, the important APIs (hooks and
 components), and how/when to modify parts of the system.
 
+## About This Fork
+
+This is a fork of [Grimprogs/devinterviewbot](https://github.com/Grimprogs/devinterviewbot), extended with a number of original features and fixes by Kaushal Dubey, including:
+
+- Password authentication and a submit-code guard
+- The 3D VRM avatar system: MediaPipe-based face tracking, Three.js + `@pixiv/three-vrm` rendering, and secondary body/idle animation
+- WebAudio-based lip-sync and text-to-speech pipeline, including voice latency, pause, and fallback fixes
+- Multi-language interview support (added C, C++, and Java)
+- Dynamic problem generation and a glassmorphic, colorful dashboard redesign
+- Security hardening (removed a hardcoded API key)
+
 Quick start
 1. Install dependencies:
 
